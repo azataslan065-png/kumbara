@@ -4,6 +4,12 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Kumbara Bank — Admin</title>
+<link rel="manifest" href="./manifest.json" />
+<meta name="theme-color" content="#0F3B3A" />
+<link rel="icon" href="./icon-192.png" />
+<link rel="apple-touch-icon" href="./icon-192.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <style>
   :root{
     --vault:#0F3B3A;
@@ -151,7 +157,7 @@
     margin-bottom:6px;
   }
   .row{ margin-bottom:18px; }
-  select, input[type=text], input[type=number]{
+  select, input[type=text], input[type=number], input[type=datetime-local]{
     width:100%;
     background:transparent;
     border:none;
@@ -165,6 +171,19 @@
   }
   select:focus, input:focus{ border-color:var(--gold); }
   select option{ background:var(--vault-dark); color:var(--cream); }
+  input[type=datetime-local]{ color-scheme:dark; }
+  .hint{ font-family:ui-monospace,'SF Mono',Menlo,monospace; font-size:11px; color:rgba(245,237,227,0.35); margin-top:6px; }
+  .proto-warn{
+    background:rgba(201,124,124,0.16);
+    border:1px solid var(--clay-dark);
+    border-radius:4px;
+    padding:14px 16px;
+    margin-bottom:24px;
+    font-size:14px;
+    line-height:1.5;
+  }
+  .proto-warn b{ color:var(--clay); }
+  .backup-row{ display:flex; gap:10px; flex-wrap:wrap; }
   .amount-row{ display:flex; gap:16px; }
   .amount-row .row{ flex:1; margin-bottom:0; }
   .actions{ display:flex; gap:10px; margin-top:24px; }
@@ -288,6 +307,8 @@
 </style>
 </head>
 <body>
+<div class="proto-warn" id="protoWarn" style="display:none;"></div>
+
 <div id="loginScreen">
   <p class="eyebrow">KUMBARA / admin</p>
   <h1>Giriş <em>yap.</em></h1>
@@ -384,6 +405,11 @@
         <label for="note">Not (opsiyonel)</label>
         <input type="text" id="note" placeholder="örn. harçlık, bahşiş..." />
       </div>
+      <div class="row">
+        <label for="entryDate">Tarih</label>
+        <input type="datetime-local" id="entryDate" />
+        <p class="hint" id="dateHint">şimdi</p>
+      </div>
       <div class="actions">
         <button class="btn btn-primary" id="addBtn">Kasaya ekle</button>
         <button class="btn btn-ghost" id="clearBtn">Temizle</button>
@@ -446,6 +472,19 @@
     </div>
     <div id="entries"></div>
   </section>
+
+  <!-- BACKUP -->
+  <section>
+    <div class="section-head"><h2>Yedek</h2></div>
+    <div class="panel">
+      <div class="backup-row">
+        <button class="btn btn-outline btn-sm" id="exportJsonBtn">JSON indir</button>
+        <button class="btn btn-outline btn-sm" id="exportCsvBtn">CSV indir</button>
+      </div>
+      <p class="hint">JSON her şeyi içerir (para birimleri, işlemler, tekrarlar). CSV yalnızca işlemleri içerir ve Excel için noktalı virgülle ayrılmıştır.</p>
+      <p class="status" id="backupStatus"></p>
+    </div>
+  </section>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -474,17 +513,23 @@
     { code:'GBP', name:'İngiliz Sterlini', symbol:'£' },
   ];
 
-  // seed defaults once if empty
-  currenciesRef.once('value').then(snap => {
-    if(!snap.exists()){
-      const updates = {};
-      DEFAULT_CURRENCIES.forEach(c => {
-        const key = currenciesRef.push().key;
-        updates[key] = { ...c, createdAt: firebase.database.ServerValue.TIMESTAMP };
-      });
-      currenciesRef.update(updates);
-    }
-  });
+  // varsayilanlari yalnizca giris yapildiktan sonra olustur
+  // (kurallar auth istedigi icin giris oncesi yazma reddedilir)
+  let seeded = false;
+  function seedCurrencies(){
+    if(seeded) return;
+    seeded = true;
+    currenciesRef.once('value').then(snap => {
+      if(!snap.exists()){
+        const updates = {};
+        DEFAULT_CURRENCIES.forEach(c => {
+          const key = currenciesRef.push().key;
+          updates[key] = { ...c, createdAt: firebase.database.ServerValue.TIMESTAMP };
+        });
+        return currenciesRef.update(updates);
+      }
+    }).catch(() => { seeded = false; });
+  }
 
   const recurringRef = db.ref('kumbara/recurring');
 
@@ -513,11 +558,50 @@
       loginScreen.style.display = 'none';
       adminApp.style.display = 'block';
       whoEmail.textContent = user.email || user.uid;
+      seedCurrencies();
+      resetDateField();
     } else {
       loginScreen.style.display = 'block';
       adminApp.style.display = 'none';
     }
   });
+
+  // http(s) disinda acildiysa Firebase Auth calismaz: sebebi acikca goster
+  (function checkProtocol(){
+    const ok = location.protocol === 'https:' || location.protocol === 'http:';
+    if(ok) return;
+    const w = document.getElementById('protoWarn');
+    w.style.display = 'block';
+    w.innerHTML = '<b>Bu sayfa dosyadan açıldı (' + location.protocol + ')</b><br>' +
+      'Firebase girişi yalnızca http(s) adreslerinde çalışır. Sayfayı GitHub Pages adresinden aç, ' +
+      'yoksa giriş düğmesi yanıt vermez.';
+    loginBtn.disabled = true;
+    loginBtn.textContent = 'Giriş kullanılamıyor';
+  })();
+
+  /* ---------------- tarih alani ---------------- */
+  const entryDate = document.getElementById('entryDate');
+  const dateHint = document.getElementById('dateHint');
+
+  function toLocalInput(d){
+    const pad = n => String(n).padStart(2, '0');
+    return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) +
+           'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+  function resetDateField(){
+    entryDate.value = toLocalInput(new Date());
+    updateDateHint();
+  }
+  function updateDateHint(){
+    if(!entryDate.value){ dateHint.textContent = 'şimdi'; return; }
+    const diff = Date.now() - new Date(entryDate.value).getTime();
+    if(Math.abs(diff) < 120000){ dateHint.textContent = 'şimdi'; return; }
+    const days = Math.round(diff / 86400000);
+    if(diff > 0) dateHint.textContent = days <= 0 ? 'bugün, geçmiş saat' : (days + ' gün önce');
+    else dateHint.textContent = 'ileri tarihli';
+  }
+  entryDate.addEventListener('change', updateDateHint);
+  entryDate.addEventListener('input', updateDateHint);
 
   loginBtn.addEventListener('click', () => {
     const email = loginEmail.value.trim();
@@ -761,17 +845,25 @@
       return;
     }
 
+    let stamp = firebase.database.ServerValue.TIMESTAMP;
+    if(entryDate.value){
+      const picked = new Date(entryDate.value).getTime();
+      // 2 dakikadan fazla sapma varsa kullanici bilerek tarih secmistir
+      if(!isNaN(picked) && Math.abs(Date.now() - picked) > 120000) stamp = picked;
+    }
+
     entriesRef.push({
       currency,
       amount,
       type: currentType,
       note,
       addedBy: currentUserEmail(),
-      timestamp: firebase.database.ServerValue.TIMESTAMP
+      timestamp: stamp
     }).then(() => {
       showStatus(statusEl, currentType === 'deposit' ? 'Eklendi ✓' : 'Düşüldü ✓', false);
       amountInput.value = '';
       document.getElementById('note').value = '';
+      resetDateField();
       amountInput.focus();
     }).catch(err => {
       showStatus(statusEl, 'Hata: ' + err.message, true);
@@ -781,6 +873,7 @@
   document.getElementById('clearBtn').addEventListener('click', () => {
     document.getElementById('amount').value = '';
     document.getElementById('note').value = '';
+    resetDateField();
     statusEl.textContent = '';
   });
 
@@ -839,6 +932,62 @@
     renderDueBanners();
   }, (err) => {
     showStatus(statusEl, 'Bağlantı hatası: ' + err.message, true);
+  });
+
+  /* ---------------- yedek ---------------- */
+  const backupStatus = document.getElementById('backupStatus');
+
+  function downloadFile(name, content, mime){
+    const blob = new Blob([content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function stampName(ext){
+    const d = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    return 'kumbara-' + d.getFullYear() + pad(d.getMonth()+1) + pad(d.getDate()) +
+           '-' + pad(d.getHours()) + pad(d.getMinutes()) + '.' + ext;
+  }
+
+  document.getElementById('exportJsonBtn').addEventListener('click', () => {
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      exportedBy: currentUserEmail(),
+      currencies,
+      entries: entriesData,
+      recurring: recurringData
+    };
+    downloadFile(stampName('json'), JSON.stringify(payload, null, 2), 'application/json');
+    showStatus(backupStatus, 'JSON indirildi ✓', false);
+  });
+
+  document.getElementById('exportCsvBtn').addEventListener('click', () => {
+    const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+    const rows = [['tarih','yon','para_birimi','miktar','not','ekleyen'].join(';')];
+    Object.values(entriesData)
+      .filter(it => it && !it.deleted)
+      .sort((a,b) => (a.timestamp||0) - (b.timestamp||0))
+      .forEach(it => {
+        const t = it.timestamp ? new Date(it.timestamp).toLocaleString('tr-TR') : '';
+        rows.push([
+          q(t),
+          q(it.type === 'withdraw' ? 'cikis' : 'giris'),
+          q(it.currency),
+          q(String(Number(it.amount||0).toFixed(2)).replace('.', ',')),
+          q(it.note || ''),
+          q(it.addedBy || '')
+        ].join(';'));
+      });
+    // BOM: Excel'in Turkce karakterleri dogru okumasi icin
+    downloadFile(stampName('csv'), '\ufeff' + rows.join('\r\n'), 'text/csv;charset=utf-8');
+    showStatus(backupStatus, 'CSV indirildi ✓', false);
   });
 
   /* ---------------- recurring transactions ---------------- */
@@ -990,6 +1139,13 @@
     renderRecurringList();
     renderDueBanners();
   });
+
+  /* ---------------- service worker ---------------- */
+  if('serviceWorker' in navigator && location.protocol === 'https:'){
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./service-worker.js').catch(() => {});
+    });
+  }
 </script>
 </body>
 </html>

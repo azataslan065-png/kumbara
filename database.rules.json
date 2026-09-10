@@ -1,0 +1,33 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "kumbara": {
+      "currencies": {
+        ".read": true,
+        ".write": "auth != null"
+      },
+      "entries": {
+        ".read": true,
+        ".write": "auth != null",
+        ".indexOn": ["timestamp"],
+        "$entry": {
+          ".validate": "newData.hasChildren(['currency','amount','type']) || !newData.exists()",
+          "amount": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+          "type": { ".validate": "newData.val() === 'deposit' || newData.val() === 'withdraw'" },
+          "currency": { ".validate": "newData.isString() && newData.val().length <= 6" },
+          "note": { ".validate": "newData.isString() && newData.val().length <= 200" },
+          "timestamp": { ".validate": "newData.isNumber()" },
+          "addedBy": { ".validate": "newData.isString()" },
+          "deleted": { ".validate": "newData.isBoolean() || !newData.exists()" },
+          "deletedAt": { ".validate": "newData.isNumber() || !newData.exists()" },
+          "$other": { ".validate": false }
+        }
+      },
+      "recurring": {
+        ".read": true,
+        ".write": "auth != null"
+      }
+    }
+  }
+}

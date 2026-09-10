@@ -4,6 +4,12 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Kumbara</title>
+<link rel="manifest" href="./manifest.json" />
+<meta name="theme-color" content="#0F3B3A" />
+<link rel="icon" href="./icon-192.png" />
+<link rel="apple-touch-icon" href="./icon-192.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <style>
   :root{
     --vault:#0F3B3A;
@@ -112,6 +118,7 @@
   .goal-track{ height:5px; background:var(--vault-darker); border-radius:3px; overflow:hidden; }
   .goal-fill{ height:100%; background:var(--gold); transition:width .4s; }
   .goal-text{ display:flex; justify-content:space-between; font-family:ui-monospace,'SF Mono',Menlo,monospace; font-size:10px; color:rgba(245,237,227,0.4); margin-top:5px; }
+  .goal-eta{ font-family:ui-monospace,'SF Mono',Menlo,monospace; font-size:10px; color:var(--gold-light); opacity:0.8; margin-top:3px; }
 
   /* ---------- grand total ---------- */
   .grand-total{ margin-top:20px; padding:20px 24px; background:var(--vault-dark); border:1px solid var(--line); border-radius:4px; text-align:center; }
@@ -224,6 +231,8 @@
   let searchTerm = '';
   let visibleCount = 15;
   let fxRates = null;
+  let fxStamp = null;
+  let fxFromCache = false;
   const PAGE_SIZE = 15;
   const PALETTE = ['#D4A537','#E8A0A0','#E8C468','#C97C7C','#8FBBB3','#B98CC7','#7FA0C9','#C9A87F'];
 
@@ -233,15 +242,43 @@
     renderHistory(true);
   });
 
+  /* ---------- kur: once onbellek, sonra ag ---------- */
+  const FX_KEY = 'kumbara_fx_v1';
+
+  function applyRates(rates, stamp, cached){
+    fxRates = rates;
+    fxRates.TRY = 1;
+    fxStamp = stamp || null;
+    fxFromCache = !!cached;
+    renderGrandTotal();
+    renderDonut();
+    renderLineChart();
+  }
+
+  (function loadCachedRates(){
+    try{
+      const raw = localStorage.getItem(FX_KEY);
+      if(!raw) return;
+      const c = JSON.parse(raw);
+      if(c && c.rates && c.stamp) applyRates(c.rates, c.stamp, true);
+    }catch(e){ /* bozuk kayit: yoksay */ }
+  })();
+
   fetch('https://open.er-api.com/v6/latest/TRY').then(r => r.json()).then(d => {
     if(d && d.result === 'success' && d.rates){
-      fxRates = d.rates;
-      fxRates.TRY = 1;
-      renderGrandTotal();
-      renderDonut();
-      renderLineChart();
+      const stamp = Date.now();
+      applyRates(d.rates, stamp, false);
+      try{ localStorage.setItem(FX_KEY, JSON.stringify({ rates: d.rates, stamp })); }catch(e){}
     }
-  }).catch(() => { /* kur bilgisi olmadan devam */ });
+  }).catch(() => { /* ag yoksa onbellekteki kur kullanilmaya devam eder */ });
+
+  function fxNote(){
+    if(!fxStamp) return '';
+    const d = new Date(fxStamp);
+    const txt = d.toLocaleString('tr-TR', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'});
+    const stale = (Date.now() - fxStamp) > 24*3600*1000;
+    return 'kur: ' + txt + (fxFromCache ? ' (kayıtlı)' : '') + (stale ? ' — güncel değil' : '');
+  }
 
   function convertToTRY(code, amount){
     if(!fxRates) return null;
@@ -313,10 +350,12 @@
       let goalHtml = '';
       if(cur && cur.goal && cur.goal > 0){
         const pct = Math.max(0, Math.min(100, (value / cur.goal) * 100));
+        const eta = goalEta(code, value, cur.goal);
         goalHtml = `
           <div class="goal-wrap">
             <div class="goal-track"><div class="goal-fill" style="width:${pct.toFixed(1)}%"></div></div>
             <div class="goal-text"><span>%${pct.toFixed(0)}</span><span>hedef: ${(cur.symbol||'')}${cur.goal.toLocaleString('tr-TR')}</span></div>
+            ${eta ? `<div class="goal-eta">${eta}</div>` : ''}
           </div>`;
       }
 
@@ -341,6 +380,34 @@
     firstLoad = false;
   }
 
+  // son 90 gunun net birikimine bakip hedefe kalan sureyi tahmin et
+  function goalEta(code, current, goal){
+    const remaining = goal - current;
+    if(remaining <= 0) return 'hedefe ulaşıldı ✓';
+
+    const now = Date.now();
+    const since = now - 90*24*3600*1000;
+    let net = 0, firstStamp = null;
+
+    Object.values(entriesData).forEach(it => {
+      if(!it || it.deleted || it.currency !== code) return;
+      if(!it.timestamp || it.timestamp < since) return;
+      if(firstStamp === null || it.timestamp < firstStamp) firstStamp = it.timestamp;
+      net += (it.type === 'withdraw' ? -1 : 1) * Number(it.amount||0);
+    });
+
+    if(firstStamp === null || net <= 0) return null;
+
+    const days = Math.max(14, (now - firstStamp) / 86400000);
+    const perMonth = net / days * 30;
+    if(perMonth <= 0) return null;
+
+    const months = remaining / perMonth;
+    if(!isFinite(months) || months <= 0 || months > 120) return null;
+    if(months < 1) return 'bu hızla ~1 aydan az';
+    return 'bu hızla ~' + Math.round(months) + ' ay';
+  }
+
   function renderGrandTotal(){
     const codes = Object.keys(lastTotals);
     if(codes.length === 0){ grandTotalEl.style.display = 'none'; return; }
@@ -355,9 +422,11 @@
       const conv = convertToTRY(c, lastTotals[c]);
       if(conv === null) missing.push(c); else sum += conv;
     });
+    const note = fxNote();
     grandTotalEl.innerHTML = `
       <div class="label">TOPLAM (₺ karşılığı, tahmini)</div>
       <div class="amount">₺${sum.toLocaleString('tr-TR',{minimumFractionDigits:2, maximumFractionDigits:2})}</div>
+      ${note ? `<div class="fx-note">${note}</div>` : ''}
       ${missing.length ? `<div class="fx-note">${missing.join(', ')} kur bulunamadığı için dahil edilmedi</div>` : ''}
     `;
   }
@@ -527,6 +596,13 @@
     });
 
     loadMoreBtn.style.display = items.length > shown.length ? 'block' : 'none';
+  }
+
+  /* ---------------- service worker ---------------- */
+  if('serviceWorker' in navigator && location.protocol === 'https:'){
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./service-worker.js').catch(() => {});
+    });
   }
 </script>
 </body>
