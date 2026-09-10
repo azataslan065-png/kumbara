@@ -2,31 +2,55 @@
   "rules": {
     ".read": false,
     ".write": false,
+
     "kumbara": {
+      ".read": true,
+
+      "//": "AŞAĞIDAKİ UID'LERİ DEĞİŞTİR. Firebase Console > Authentication > Users > User UID sütunu.",
+      "//2": "Tek kişiysen ikinci koşulu sil. Yazma izni buradan tüm alt düğümlere iner.",
+      ".write": "auth != null && (auth.uid === 'BURAYA_UID_YAZ' || auth.uid === 'IKINCI_UID_VARSA')",
+
       "currencies": {
-        ".read": true,
-        ".write": "auth != null"
+        "$cur": {
+          "code": { ".validate": "newData.isString() && newData.val().length <= 6" },
+          "symbol": { ".validate": "newData.isString() && newData.val().length <= 4" },
+          "name": { ".validate": "newData.isString() && newData.val().length <= 40" },
+          "goal": { ".validate": "newData.isNumber() || !newData.exists()" },
+          "logo": { ".validate": "newData.isString() && newData.val().length <= 300000" },
+          "createdAt": { ".validate": "newData.isNumber()" },
+          "$other": { ".validate": false }
+        }
       },
+
       "entries": {
-        ".read": true,
-        ".write": "auth != null",
         ".indexOn": ["timestamp"],
         "$entry": {
-          ".validate": "newData.hasChildren(['currency','amount','type']) || !newData.exists()",
+          ".validate": "!newData.exists() || newData.hasChildren(['currency','amount','type'])",
+          "currency": { ".validate": "newData.isString() && newData.val().length <= 6" },
           "amount": { ".validate": "newData.isNumber() && newData.val() >= 0" },
           "type": { ".validate": "newData.val() === 'deposit' || newData.val() === 'withdraw'" },
-          "currency": { ".validate": "newData.isString() && newData.val().length <= 6" },
           "note": { ".validate": "newData.isString() && newData.val().length <= 200" },
+          "addedBy": { ".validate": "newData.isString() && newData.val().length <= 120" },
           "timestamp": { ".validate": "newData.isNumber()" },
-          "addedBy": { ".validate": "newData.isString()" },
+          "rate": { ".validate": "newData.isNumber() && newData.val() > 0" },
+          "rateAt": { ".validate": "newData.isNumber()" },
           "deleted": { ".validate": "newData.isBoolean() || !newData.exists()" },
           "deletedAt": { ".validate": "newData.isNumber() || !newData.exists()" },
           "$other": { ".validate": false }
         }
       },
+
       "recurring": {
-        ".read": true,
-        ".write": "auth != null"
+        "$rec": {
+          "currency": { ".validate": "newData.isString() && newData.val().length <= 6" },
+          "amount": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+          "type": { ".validate": "newData.val() === 'deposit' || newData.val() === 'withdraw'" },
+          "frequency": { ".validate": "newData.val() === 'weekly' || newData.val() === 'monthly'" },
+          "note": { ".validate": "newData.isString() && newData.val().length <= 200" },
+          "lastAppliedPeriod": { ".validate": "newData.isString() && newData.val().length <= 20" },
+          "createdAt": { ".validate": "newData.isNumber()" },
+          "$other": { ".validate": false }
+        }
       }
     }
   }

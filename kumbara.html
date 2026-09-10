@@ -132,6 +132,7 @@
   .chart-card{ background:var(--vault-dark); border:1px solid var(--line); border-radius:4px; padding:18px; }
   .chart-card h3{ margin:0 0 14px; font-size:12px; font-weight:400; color:rgba(245,237,227,0.6); font-family:ui-monospace,'SF Mono',Menlo,monospace; letter-spacing:0.02em; }
   .chart-empty{ color:rgba(245,237,227,0.3); font-size:12px; font-style:italic; padding:30px 0; text-align:center; }
+  .chart-note{ font-family:ui-monospace,'SF Mono',Menlo,monospace; font-size:10px; color:rgba(245,237,227,0.3); text-align:center; margin-top:8px; }
   .donut-legend{ display:flex; flex-wrap:wrap; gap:7px 14px; margin-top:12px; justify-content:center; }
   .donut-legend .item{ display:flex; align-items:center; gap:6px; font-size:11px; font-family:ui-monospace,'SF Mono',Menlo,monospace; color:rgba(245,237,227,0.55); }
   .donut-legend .swatch{ width:8px; height:8px; border-radius:50%; flex-shrink:0; }
@@ -285,6 +286,13 @@
     const r = fxRates[code];
     if(!r) return null;
     return amount / r;
+  }
+
+  // kayitta islem anindaki kur varsa onu kullan, yoksa bugunku kura dus
+  function entryTRY(it){
+    const amt = Number(it.amount || 0);
+    if(it.rate && it.rate > 0) return amt / it.rate;
+    return convertToTRY(it.currency, amt);
   }
 
   function badgeHtml(cur, code){
@@ -488,15 +496,16 @@
       const cur = curByCode(activeFilter);
       return { pts, symbol: (cur && cur.symbol) || activeFilter };
     }
-    if(!fxRates) return null;
     let running = 0;
+    let anyStamped = false;
     const pts = items.map(it => {
-      const conv = convertToTRY(it.currency, Number(it.amount||0));
+      const conv = entryTRY(it);
       if(conv === null) return null;
+      if(it.rate) anyStamped = true;
       running += (it.type === 'withdraw' ? -1 : 1) * conv;
       return { t: it.timestamp||0, v: running };
     }).filter(Boolean);
-    return { pts, symbol: '₺' };
+    return { pts, symbol: '₺', stamped: anyStamped };
   }
 
   function renderLineChart(){
@@ -505,7 +514,13 @@
       lineEl.innerHTML = '<div class="chart-empty">Grafik için yeterli veri yok.</div>';
       return;
     }
-    lineEl.innerHTML = drawLine(series.pts, series.symbol);
+    let html = drawLine(series.pts, series.symbol);
+    if(activeFilter === 'all'){
+      html += '<div class="chart-note">' +
+        (series.stamped ? 'işlem anındaki kurla' : 'bugünkü kurla — eski kayıtlarda kur damgası yok') +
+        '</div>';
+    }
+    lineEl.innerHTML = html;
   }
 
   function renderMonthlySummary(){

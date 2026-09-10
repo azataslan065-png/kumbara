@@ -533,6 +533,43 @@
 
   const recurringRef = db.ref('kumbara/recurring');
 
+  /* ---------------- kur damgasi ----------------
+     Her kayda o andaki kuru yaziyoruz: 1 TRY = rate birim.
+     Boylece gecmis grafigi bugunku kurla degil, islem anindaki kurla cizilir. */
+  const FX_KEY = 'kumbara_fx_v1';
+  let fxRates = null;
+  let fxStamp = null;
+
+  (function initFx(){
+    try{
+      const raw = localStorage.getItem(FX_KEY);
+      if(raw){
+        const c = JSON.parse(raw);
+        if(c && c.rates){ fxRates = c.rates; fxRates.TRY = 1; fxStamp = c.stamp || null; }
+      }
+    }catch(e){ /* bozuk kayit: yoksay */ }
+
+    fetch('https://open.er-api.com/v6/latest/TRY').then(r => r.json()).then(d => {
+      if(d && d.result === 'success' && d.rates){
+        fxRates = d.rates;
+        fxRates.TRY = 1;
+        fxStamp = Date.now();
+        try{ localStorage.setItem(FX_KEY, JSON.stringify({ rates: d.rates, stamp: fxStamp })); }catch(e){}
+      }
+    }).catch(() => { /* kur yoksa kayit yine de eklenir, sadece damga olmaz */ });
+  })();
+
+  function stampRate(payload, code){
+    if(code === 'TRY'){
+      payload.rate = 1;
+      payload.rateAt = Date.now();
+    } else if(fxRates && fxRates[code] > 0){
+      payload.rate = fxRates[code];
+      payload.rateAt = fxStamp || Date.now();
+    }
+    return payload;
+  }
+
   let currencies = {}; // key -> data
   let entriesData = {};
   let recurringData = {};
@@ -597,8 +634,10 @@
     const diff = Date.now() - new Date(entryDate.value).getTime();
     if(Math.abs(diff) < 120000){ dateHint.textContent = 'şimdi'; return; }
     const days = Math.round(diff / 86400000);
-    if(diff > 0) dateHint.textContent = days <= 0 ? 'bugün, geçmiş saat' : (days + ' gün önce');
-    else dateHint.textContent = 'ileri tarihli';
+    if(diff < 0){ dateHint.textContent = 'ileri tarihli'; return; }
+    const txt = days <= 0 ? 'bugün, geçmiş saat' : (days + ' gün önce');
+    // geri tarihli kayda bugunun kuru yazilir, o gunun kuru degil
+    dateHint.textContent = days > 1 ? txt + ' — kur bugünün kuruyla kaydedilir' : txt;
   }
   entryDate.addEventListener('change', updateDateHint);
   entryDate.addEventListener('input', updateDateHint);
@@ -852,14 +891,14 @@
       if(!isNaN(picked) && Math.abs(Date.now() - picked) > 120000) stamp = picked;
     }
 
-    entriesRef.push({
+    entriesRef.push(stampRate({
       currency,
       amount,
       type: currentType,
       note,
       addedBy: currentUserEmail(),
       timestamp: stamp
-    }).then(() => {
+    }, currency)).then(() => {
       showStatus(statusEl, currentType === 'deposit' ? 'Eklendi ✓' : 'Düşüldü ✓', false);
       amountInput.value = '';
       document.getElementById('note').value = '';
@@ -1117,14 +1156,14 @@
     if(!rec) return;
     const pk = periodKey(rec.frequency);
     if(applyKey){
-      entriesRef.push({
+      entriesRef.push(stampRate({
         currency: rec.currency,
         amount: rec.amount,
         type: rec.type,
         note: rec.note,
         addedBy: currentUserEmail(),
         timestamp: firebase.database.ServerValue.TIMESTAMP
-      });
+      }, rec.currency));
     }
     recurringRef.child(key).update({ lastAppliedPeriod: pk });
   });
