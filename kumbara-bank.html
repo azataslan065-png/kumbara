@@ -559,12 +559,20 @@
     }).catch(() => { /* kur yoksa kayit yine de eklenir, sadece damga olmaz */ });
   })();
 
+  // yerel kisaltmalari kur servisinin ISO kodlarina esle (TL -> TRY gibi)
+  const FX_ALIAS = { TL:'TRY', TRL:'TRY', YTL:'TRY', STG:'GBP', EURO:'EUR' };
+  function fxCode(code){
+    const c = String(code || '').trim().toUpperCase();
+    return FX_ALIAS[c] || c;
+  }
+
   function stampRate(payload, code){
-    if(code === 'TRY'){
+    const iso = fxCode(code);
+    if(iso === 'TRY'){
       payload.rate = 1;
       payload.rateAt = Date.now();
-    } else if(fxRates && fxRates[code] > 0){
-      payload.rate = fxRates[code];
+    } else if(fxRates && fxRates[iso] > 0){
+      payload.rate = fxRates[iso];
       payload.rateAt = fxStamp || Date.now();
     }
     return payload;

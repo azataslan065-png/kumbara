@@ -281,9 +281,16 @@
     return 'kur: ' + txt + (fxFromCache ? ' (kayıtlı)' : '') + (stale ? ' — güncel değil' : '');
   }
 
+  // yerel kisaltmalari kur servisinin ISO kodlarina esle (TL -> TRY gibi)
+  const FX_ALIAS = { TL:'TRY', TRL:'TRY', YTL:'TRY', STG:'GBP', EURO:'EUR' };
+  function fxCode(code){
+    const c = String(code || '').trim().toUpperCase();
+    return FX_ALIAS[c] || c;
+  }
+
   function convertToTRY(code, amount){
     if(!fxRates) return null;
-    const r = fxRates[code];
+    const r = fxRates[fxCode(code)];
     if(!r) return null;
     return amount / r;
   }
