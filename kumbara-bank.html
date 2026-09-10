@@ -1,0 +1,995 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Kumbara Bank — Admin</title>
+<style>
+  :root{
+    --vault:#0F3B3A;
+    --vault-dark:#0A2B2A;
+    --vault-darker:#071F1E;
+    --gold:#D4A537;
+    --gold-light:#E8C468;
+    --clay:#E8A0A0;
+    --clay-dark:#C97C7C;
+    --cream:#F5EDE3;
+    --ink:#12201F;
+    --line:rgba(245,237,227,0.14);
+    --line-strong:rgba(245,237,227,0.24);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    min-height:100vh;
+    background:
+      radial-gradient(circle at 15% -10%, rgba(212,165,55,0.18), transparent 45%),
+      var(--vault);
+    color:var(--cream);
+    font-family:'Georgia', 'Iowan Old Style', serif;
+    display:flex;
+    justify-content:center;
+    padding:48px 20px 80px;
+  }
+  .sheet{ width:100%; max-width:560px; }
+  .eyebrow{
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+    font-size:13px;
+    letter-spacing:0.02em;
+    color:var(--gold-light);
+    margin:0 0 6px;
+  }
+  h1{
+    font-size:36px;
+    line-height:1.08;
+    margin:0 0 8px;
+    font-weight:400;
+    letter-spacing:-0.01em;
+  }
+  h1 em{ font-style:italic; color:var(--gold-light); }
+  .sub{
+    margin:0 0 32px;
+    font-size:14px;
+    color:rgba(245,237,227,0.5);
+  }
+
+  section{ margin-bottom:40px; }
+  .section-head{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:14px;
+  }
+  .section-head h2{
+    font-size:16px;
+    font-weight:400;
+    margin:0;
+    color:rgba(245,237,227,0.8);
+  }
+  .section-head .count{
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+    font-size:12px;
+    color:rgba(245,237,227,0.4);
+  }
+
+  /* ---------- buttons ---------- */
+  .btn{
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+    font-size:13px;
+    border-radius:3px;
+    padding:13px 18px;
+    cursor:pointer;
+    border:1px solid transparent;
+    transition:transform .12s ease, background-color .15s ease, border-color .15s ease, color .15s ease;
+    line-height:1;
+  }
+  .btn:active{ transform:scale(0.97); }
+  .btn:disabled{ opacity:0.4; cursor:not-allowed; transform:none; }
+  .btn-primary{ background:var(--gold); color:var(--vault-darker); font-weight:600; }
+  .btn-primary:hover:not(:disabled){ background:var(--gold-light); }
+  .btn-outline{ background:transparent; color:var(--cream); border-color:var(--line-strong); }
+  .btn-outline:hover:not(:disabled){ border-color:var(--gold); color:var(--gold-light); }
+  .btn-ghost{ background:transparent; color:rgba(245,237,227,0.5); border-color:transparent; padding:13px 14px; }
+  .btn-ghost:hover:not(:disabled){ color:var(--cream); }
+  .btn-danger{ background:transparent; color:var(--clay); border-color:rgba(232,160,160,0.35); }
+  .btn-danger:hover:not(:disabled){ background:rgba(232,160,160,0.1); border-color:var(--clay); }
+  .btn-block{ width:100%; }
+  .btn-sm{ padding:8px 12px; font-size:11px; }
+
+  .icon-btn{
+    width:30px; height:30px;
+    display:inline-flex; align-items:center; justify-content:center;
+    background:transparent;
+    border:1px solid var(--line);
+    border-radius:3px;
+    color:rgba(245,237,227,0.55);
+    cursor:pointer;
+    font-size:13px;
+    flex-shrink:0;
+    transition:border-color .15s, color .15s, background-color .15s;
+  }
+  .icon-btn:hover{ color:var(--cream); border-color:var(--line-strong); }
+  .icon-btn.danger:hover{ color:var(--clay); border-color:var(--clay); background:rgba(232,160,160,0.08); }
+  .icon-btn.active{ color:var(--gold-light); border-color:var(--gold); }
+
+  /* ---------- segmented control (deposit / withdraw) ---------- */
+  .seg{
+    display:flex;
+    background:var(--vault-darker);
+    border:1px solid var(--line);
+    border-radius:3px;
+    padding:3px;
+    gap:3px;
+  }
+  .seg button{
+    flex:1;
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+    font-size:12px;
+    padding:10px 8px;
+    border:none;
+    border-radius:2px;
+    background:transparent;
+    color:rgba(245,237,227,0.45);
+    cursor:pointer;
+    transition:background-color .15s, color .15s;
+  }
+  .seg button.on.deposit{ background:var(--gold); color:var(--vault-darker); font-weight:600; }
+  .seg button.on.withdraw{ background:var(--clay); color:var(--vault-darker); font-weight:600; }
+
+  /* ---------- panels ---------- */
+  .panel{
+    background:var(--vault-dark);
+    border:1px solid var(--line);
+    border-radius:4px;
+    padding:26px;
+  }
+  label{
+    display:block;
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+    font-size:11px;
+    color:rgba(245,237,227,0.55);
+    margin-bottom:6px;
+  }
+  .row{ margin-bottom:18px; }
+  select, input[type=text], input[type=number]{
+    width:100%;
+    background:transparent;
+    border:none;
+    border-bottom:1px solid var(--line);
+    color:var(--cream);
+    font-family:'Georgia', serif;
+    font-size:19px;
+    padding:8px 2px;
+    outline:none;
+    transition:border-color .2s;
+  }
+  select:focus, input:focus{ border-color:var(--gold); }
+  select option{ background:var(--vault-dark); color:var(--cream); }
+  .amount-row{ display:flex; gap:16px; }
+  .amount-row .row{ flex:1; margin-bottom:0; }
+  .actions{ display:flex; gap:10px; margin-top:24px; }
+  .actions .btn-primary{ flex:1; }
+
+  .status{
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+    font-size:12px;
+    margin-top:14px;
+    min-height:16px;
+    color:var(--gold-light);
+  }
+  .status.err{ color:var(--clay); }
+
+  /* ---------- currency manager ---------- */
+  .cur-list{ display:flex; flex-direction:column; gap:1px; background:var(--line); border:1px solid var(--line); border-radius:4px; overflow:hidden; }
+  .cur-item{
+    display:flex; align-items:center; gap:12px;
+    padding:12px 16px;
+    background:var(--vault-dark);
+  }
+  .cur-badge{
+    width:34px; height:34px; border-radius:50%;
+    flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+    background:var(--vault-darker);
+    border:1px solid var(--line);
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+    font-size:13px;
+    color:var(--gold-light);
+    overflow:hidden;
+  }
+  .cur-badge img{ width:100%; height:100%; object-fit:cover; }
+  .cur-info{ flex:1; min-width:0; }
+  .cur-code{ font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size:13px; color:var(--cream); }
+  .cur-name{ font-size:12px; color:rgba(245,237,227,0.45); margin-top:2px; }
+  .cur-actions{ display:flex; gap:6px; }
+  .cur-empty{ padding:22px 16px; color:rgba(245,237,227,0.35); font-style:italic; font-size:14px; background:var(--vault-dark); }
+
+  .cur-form{
+    margin-top:14px;
+    background:var(--vault-darker);
+    border:1px solid var(--line);
+    border-radius:4px;
+    padding:20px;
+    display:none;
+  }
+  .cur-form.open{ display:block; }
+  .cur-form .grid{ display:grid; grid-template-columns:1fr 1fr; gap:16px 16px; }
+  .cur-form .grid .row{ margin-bottom:0; }
+  .logo-row{ display:flex; align-items:center; gap:14px; margin-top:18px; margin-bottom:4px; }
+  .logo-preview{
+    width:48px; height:48px; border-radius:50%;
+    background:var(--vault-dark);
+    border:1px dashed var(--line-strong);
+    display:flex; align-items:center; justify-content:center;
+    overflow:hidden;
+    flex-shrink:0;
+    color:rgba(245,237,227,0.3);
+    font-size:11px;
+  }
+  .logo-preview img{ width:100%; height:100%; object-fit:cover; }
+  .file-label{
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+    font-size:12px;
+    color:var(--gold-light);
+    border:1px solid var(--line-strong);
+    border-radius:3px;
+    padding:9px 14px;
+    cursor:pointer;
+    transition:border-color .15s;
+  }
+  .file-label:hover{ border-color:var(--gold); }
+  .file-label input{ display:none; }
+  .logo-clear{ font-size:11px; color:rgba(245,237,227,0.35); background:none; border:none; cursor:pointer; text-decoration:underline; }
+  .cur-form .actions{ margin-top:20px; }
+
+  /* ---------- history ---------- */
+  .entry{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    padding:14px 0;
+    border-bottom:1px solid var(--line);
+  }
+  .entry .cur-badge{ width:30px; height:30px; font-size:11px; }
+  .entry .amt{ font-size:19px; flex:1; }
+  .entry .amt.dep{ color:var(--gold-light); }
+  .entry .amt.wd{ color:var(--clay); }
+  .entry .note{ font-size:13px; color:rgba(245,237,227,0.45); flex:1; }
+  .entry .time{ font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size:11px; color:rgba(245,237,227,0.35); flex-shrink:0; }
+  .empty{ color:rgba(245,237,227,0.35); font-size:14px; padding:20px 0; font-style:italic; }
+
+  /* ---------- auth ---------- */
+  #loginScreen{ width:100%; max-width:360px; margin:0 auto; }
+  #loginScreen .panel{ margin-top:24px; }
+  .who-bar{ display:flex; justify-content:space-between; align-items:center; margin-bottom:28px; padding-bottom:14px; border-bottom:1px solid var(--line); }
+  .who-bar span{ font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size:12px; color:rgba(245,237,227,0.5); }
+
+  /* ---------- recurring ---------- */
+  .rec-list{ display:flex; flex-direction:column; gap:1px; background:var(--line); border:1px solid var(--line); border-radius:4px; overflow:hidden; margin-bottom:14px; }
+  .rec-item{ display:flex; align-items:center; gap:12px; padding:14px 16px; background:var(--vault-dark); }
+  .rec-item .rec-info{ flex:1; font-size:14px; }
+  .rec-item .rec-freq{ font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size:11px; color:rgba(245,237,227,0.4); margin-top:2px; }
+  .rec-empty{ padding:22px 16px; color:rgba(245,237,227,0.35); font-style:italic; font-size:14px; background:var(--vault-dark); border:1px solid var(--line); border-radius:4px; margin-bottom:14px; }
+  .rec-form{ background:var(--vault-darker); border:1px solid var(--line); border-radius:4px; padding:20px; display:none; }
+  .rec-form.open{ display:block; }
+  .rec-form .grid{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .rec-form .grid .row{ margin-bottom:0; }
+
+  .due-banner{ background:rgba(212,165,55,0.1); border:1px solid var(--gold); border-radius:4px; padding:16px 18px; margin-bottom:14px; display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; }
+  .due-banner .txt{ font-size:14px; }
+  .due-banner .txt b{ color:var(--gold-light); }
+  .due-banner .acts{ display:flex; gap:8px; }
+
+  /* ---------- undo toast ---------- */
+  .toast{ position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:var(--vault-darker); border:1px solid var(--gold); border-radius:4px; padding:12px 16px; display:flex; align-items:center; gap:14px; font-size:13px; z-index:50; box-shadow:0 6px 20px rgba(0,0,0,0.3); }
+  .toast button{ background:none; border:none; color:var(--gold-light); font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size:12px; cursor:pointer; text-decoration:underline; }
+
+  .entry .who{ font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size:10px; color:rgba(245,237,227,0.3); }
+</style>
+</head>
+<body>
+<div id="loginScreen">
+  <p class="eyebrow">KUMBARA / admin</p>
+  <h1>Giriş <em>yap.</em></h1>
+  <p class="sub">Kasayı yönetmek için giriş yapmalısın.</p>
+  <div class="panel">
+    <div class="row">
+      <label for="loginEmail">E-posta</label>
+      <input type="text" id="loginEmail" placeholder="ornek@eposta.com" />
+    </div>
+    <div class="row">
+      <label for="loginPass">Şifre</label>
+      <input type="password" id="loginPass" placeholder="••••••••" />
+    </div>
+    <div class="actions">
+      <button class="btn btn-primary btn-block" id="loginBtn">Giriş yap</button>
+    </div>
+    <p class="status" id="loginStatus"></p>
+  </div>
+</div>
+
+<div class="sheet" id="adminApp" style="display:none;">
+  <div class="who-bar">
+    <span id="whoEmail"></span>
+    <button class="btn btn-ghost btn-sm" id="logoutBtn">Çıkış yap</button>
+  </div>
+  <p class="eyebrow">KUMBARA / admin</p>
+  <h1>Kasayı <em>yönet.</em></h1>
+  <p class="sub">Para birimi tanımla, işlem ekle ya da kasadan düş.</p>
+
+  <!-- CURRENCY MANAGER -->
+  <section>
+    <div class="section-head">
+      <h2>Para birimleri</h2>
+      <button class="btn btn-outline btn-sm" id="newCurBtn">+ Yeni para birimi</button>
+    </div>
+    <div class="cur-list" id="curList"></div>
+
+    <div class="cur-form" id="curForm">
+      <div class="grid">
+        <div class="row">
+          <label for="curCode">Kod (örn. TRY)</label>
+          <input type="text" id="curCode" maxlength="6" placeholder="JPY" style="text-transform:uppercase" />
+        </div>
+        <div class="row">
+          <label for="curSymbol">Sembol (örn. ₺)</label>
+          <input type="text" id="curSymbol" maxlength="4" placeholder="¥" />
+        </div>
+      </div>
+      <div class="row" style="margin-top:16px;">
+        <label for="curName">Ad</label>
+        <input type="text" id="curName" placeholder="Japon Yeni" />
+      </div>
+      <div class="row" style="margin-top:16px;">
+        <label for="curGoal">Hedef tutar (opsiyonel)</label>
+        <input type="number" id="curGoal" placeholder="örn. 5000" step="0.01" min="0" />
+      </div>
+      <div class="logo-row">
+        <div class="logo-preview" id="logoPreview">logo</div>
+        <label class="file-label">Logo seç
+          <input type="file" id="curLogo" accept="image/*" />
+        </label>
+        <button class="logo-clear" id="logoClearBtn" type="button">kaldır</button>
+      </div>
+      <p class="status" id="curStatus"></p>
+      <div class="actions">
+        <button class="btn btn-primary" id="curSaveBtn">Kaydet</button>
+        <button class="btn btn-ghost" id="curCancelBtn">Vazgeç</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ADD / WITHDRAW TRANSACTION -->
+  <section>
+    <div class="section-head"><h2>İşlem</h2></div>
+    <div class="panel">
+      <div class="row">
+        <label>Yön</label>
+        <div class="seg" id="typeSeg">
+          <button type="button" class="on deposit" data-type="deposit">↓ Kasaya ekle</button>
+          <button type="button" data-type="withdraw">↑ Kasadan düş</button>
+        </div>
+      </div>
+      <div class="row amount-row">
+        <div class="row">
+          <label for="currency">Para birimi</label>
+          <select id="currency"></select>
+        </div>
+        <div class="row">
+          <label for="amount">Miktar</label>
+          <input type="number" id="amount" placeholder="0.00" step="0.01" min="0" />
+        </div>
+      </div>
+      <div class="row">
+        <label for="note">Not (opsiyonel)</label>
+        <input type="text" id="note" placeholder="örn. harçlık, bahşiş..." />
+      </div>
+      <div class="actions">
+        <button class="btn btn-primary" id="addBtn">Kasaya ekle</button>
+        <button class="btn btn-ghost" id="clearBtn">Temizle</button>
+      </div>
+      <p class="status" id="status"></p>
+    </div>
+  </section>
+
+  <!-- RECURRING -->
+  <section>
+    <div class="section-head">
+      <h2>Tekrarlayan işlemler</h2>
+      <button class="btn btn-outline btn-sm" id="newRecBtn">+ Yeni tekrar</button>
+    </div>
+    <div id="dueBanners"></div>
+    <div class="rec-list" id="recList"></div>
+
+    <div class="rec-form" id="recForm">
+      <div class="grid">
+        <div class="row">
+          <label for="recCurrency">Para birimi</label>
+          <select id="recCurrency"></select>
+        </div>
+        <div class="row">
+          <label for="recAmount">Miktar</label>
+          <input type="number" id="recAmount" placeholder="0.00" step="0.01" min="0" />
+        </div>
+        <div class="row">
+          <label for="recType">Yön</label>
+          <select id="recType">
+            <option value="deposit">Kasaya ekle</option>
+            <option value="withdraw">Kasadan düş</option>
+          </select>
+        </div>
+        <div class="row">
+          <label for="recFrequency">Sıklık</label>
+          <select id="recFrequency">
+            <option value="monthly">Aylık</option>
+            <option value="weekly">Haftalık</option>
+          </select>
+        </div>
+      </div>
+      <div class="row" style="margin-top:16px;">
+        <label for="recNote">Not (opsiyonel)</label>
+        <input type="text" id="recNote" placeholder="örn. maaştan pay" />
+      </div>
+      <p class="status" id="recStatus"></p>
+      <div class="actions">
+        <button class="btn btn-primary" id="recSaveBtn">Kaydet</button>
+        <button class="btn btn-ghost" id="recCancelBtn">Vazgeç</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- HISTORY -->
+  <section>
+    <div class="section-head">
+      <h2>İşlem geçmişi</h2>
+      <span class="count" id="countLabel">0 kayıt</span>
+    </div>
+    <div id="entries"></div>
+  </section>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyCV9fRLZ30pTDats1DZs8_xz4droboUfro",
+    authDomain: "kumbara-4919d.firebaseapp.com",
+    databaseURL: "https://kumbara-4919d-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "kumbara-4919d",
+    storageBucket: "kumbara-4919d.firebasestorage.app",
+    messagingSenderId: "277764488635",
+    appId: "1:277764488635:web:0b08f76737de421f0f589e"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+  const currenciesRef = db.ref('kumbara/currencies');
+  const entriesRef = db.ref('kumbara/entries');
+
+  const DEFAULT_CURRENCIES = [
+    { code:'TRY', name:'Türk Lirası', symbol:'₺' },
+    { code:'USD', name:'Amerikan Doları', symbol:'$' },
+    { code:'EUR', name:'Euro', symbol:'€' },
+    { code:'GBP', name:'İngiliz Sterlini', symbol:'£' },
+  ];
+
+  // seed defaults once if empty
+  currenciesRef.once('value').then(snap => {
+    if(!snap.exists()){
+      const updates = {};
+      DEFAULT_CURRENCIES.forEach(c => {
+        const key = currenciesRef.push().key;
+        updates[key] = { ...c, createdAt: firebase.database.ServerValue.TIMESTAMP };
+      });
+      currenciesRef.update(updates);
+    }
+  });
+
+  const recurringRef = db.ref('kumbara/recurring');
+
+  let currencies = {}; // key -> data
+  let entriesData = {};
+  let recurringData = {};
+
+  const statusEl = document.getElementById('status');
+  const entriesEl = document.getElementById('entries');
+  const countLabel = document.getElementById('countLabel');
+  const currencySelect = document.getElementById('currency');
+  const curList = document.getElementById('curList');
+
+  /* ---------------- auth ---------------- */
+  const loginScreen = document.getElementById('loginScreen');
+  const adminApp = document.getElementById('adminApp');
+  const loginEmail = document.getElementById('loginEmail');
+  const loginPass = document.getElementById('loginPass');
+  const loginBtn = document.getElementById('loginBtn');
+  const loginStatus = document.getElementById('loginStatus');
+  const whoEmail = document.getElementById('whoEmail');
+  const logoutBtn = document.getElementById('logoutBtn');
+
+  firebase.auth().onAuthStateChanged(user => {
+    if(user){
+      loginScreen.style.display = 'none';
+      adminApp.style.display = 'block';
+      whoEmail.textContent = user.email || user.uid;
+    } else {
+      loginScreen.style.display = 'block';
+      adminApp.style.display = 'none';
+    }
+  });
+
+  loginBtn.addEventListener('click', () => {
+    const email = loginEmail.value.trim();
+    const pass = loginPass.value;
+    if(!email || !pass){ showStatus(loginStatus, 'E-posta ve şifre gerekli.', true); return; }
+    loginBtn.disabled = true;
+    firebase.auth().signInWithEmailAndPassword(email, pass)
+      .then(() => { loginStatus.textContent = ''; })
+      .catch(err => showStatus(loginStatus, 'Giriş başarısız: ' + err.message, true))
+      .finally(() => { loginBtn.disabled = false; });
+  });
+
+  loginPass.addEventListener('keydown', e => { if(e.key === 'Enter') loginBtn.click(); });
+
+  logoutBtn.addEventListener('click', () => firebase.auth().signOut());
+
+  function currentUserEmail(){
+    const u = firebase.auth().currentUser;
+    return u ? (u.email || u.uid) : null;
+  }
+
+  function showStatus(el, msg, isErr){
+    el.textContent = msg;
+    el.className = 'status' + (isErr ? ' err' : '');
+    if(!isErr){
+      setTimeout(()=>{ if(el.textContent===msg) el.textContent=''; }, 2500);
+    }
+  }
+
+  function badgeHtml(cur){
+    if(cur && cur.logo){
+      return `<img src="${cur.logo}" alt="${cur.code}" />`;
+    }
+    return (cur && cur.symbol) ? cur.symbol : (cur ? cur.code : '?');
+  }
+
+  /* ---------------- type toggle ---------------- */
+  let currentType = 'deposit';
+  const typeSeg = document.getElementById('typeSeg');
+  const addBtn = document.getElementById('addBtn');
+  typeSeg.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-type]');
+    if(!btn) return;
+    currentType = btn.dataset.type;
+    typeSeg.querySelectorAll('button').forEach(b => b.classList.toggle('on', b === btn));
+    addBtn.textContent = currentType === 'deposit' ? 'Kasaya ekle' : 'Kasadan düş';
+  });
+
+  /* ---------------- currency select + list rendering ---------------- */
+  function renderCurrencySelect(){
+    const prev = currencySelect.value;
+    currencySelect.innerHTML = '';
+    Object.entries(currencies).forEach(([key, cur]) => {
+      const opt = document.createElement('option');
+      opt.value = cur.code;
+      opt.textContent = `${cur.symbol || cur.code} ${cur.code}`;
+      currencySelect.appendChild(opt);
+    });
+    if([...currencySelect.options].some(o => o.value === prev)) currencySelect.value = prev;
+  }
+
+  function renderCurrencyList(){
+    const keys = Object.keys(currencies);
+    if(keys.length === 0){
+      curList.innerHTML = '<div class="cur-empty">Henüz para birimi yok.</div>';
+      return;
+    }
+    curList.innerHTML = '';
+    keys.forEach(key => {
+      const cur = currencies[key];
+      const div = document.createElement('div');
+      div.className = 'cur-item';
+      div.innerHTML = `
+        <div class="cur-badge">${badgeHtml(cur)}</div>
+        <div class="cur-info">
+          <div class="cur-code">${cur.code}</div>
+          <div class="cur-name">${cur.name || ''}${cur.goal ? ` · hedef: ${cur.symbol||''}${cur.goal.toLocaleString('tr-TR')}` : ''}</div>
+        </div>
+        <div class="cur-actions">
+          <button class="icon-btn" title="Düzenle" data-edit="${key}">✎</button>
+          <button class="icon-btn danger" title="Sil" data-del="${key}">✕</button>
+        </div>
+      `;
+      curList.appendChild(div);
+    });
+  }
+
+  currenciesRef.on('value', snap => {
+    currencies = snap.val() || {};
+    renderCurrencySelect();
+    renderCurrencyList();
+  });
+
+  /* ---------------- currency add/edit form ---------------- */
+  const curForm = document.getElementById('curForm');
+  const curCode = document.getElementById('curCode');
+  const curSymbol = document.getElementById('curSymbol');
+  const curName = document.getElementById('curName');
+  const curGoal = document.getElementById('curGoal');
+  const curLogo = document.getElementById('curLogo');
+  const logoPreview = document.getElementById('logoPreview');
+  const curStatus = document.getElementById('curStatus');
+  let editingKey = null;
+  let pendingLogo = null; // dataURL or null(no change) or '' (cleared)
+
+  function openForm(key){
+    editingKey = key || null;
+    pendingLogo = null;
+    curStatus.textContent = '';
+    if(key){
+      const cur = currencies[key];
+      curCode.value = cur.code;
+      curCode.disabled = true; // keep code stable once created, avoids orphaning entries
+      curSymbol.value = cur.symbol || '';
+      curName.value = cur.name || '';
+      curGoal.value = cur.goal || '';
+      logoPreview.innerHTML = cur.logo ? `<img src="${cur.logo}" />` : 'logo';
+    } else {
+      curCode.value = '';
+      curCode.disabled = false;
+      curSymbol.value = '';
+      curName.value = '';
+      curGoal.value = '';
+      logoPreview.innerHTML = 'logo';
+    }
+    curForm.classList.add('open');
+    curForm.scrollIntoView({behavior:'smooth', block:'nearest'});
+  }
+
+  function closeForm(){
+    curForm.classList.remove('open');
+    editingKey = null;
+    pendingLogo = null;
+    curLogo.value = '';
+  }
+
+  document.getElementById('newCurBtn').addEventListener('click', () => openForm(null));
+  document.getElementById('curCancelBtn').addEventListener('click', closeForm);
+
+  curList.addEventListener('click', (e) => {
+    const editKey = e.target.closest('[data-edit]')?.dataset.edit;
+    const delKey = e.target.closest('[data-del]')?.dataset.del;
+    if(editKey){ openForm(editKey); }
+    if(delKey){
+      const cur = currencies[delKey];
+      const usedCount = Object.values(entriesData).filter(en => en.currency === cur.code).length;
+      const warn = usedCount > 0
+        ? `"${cur.code}" için ${usedCount} işlem kaydı var. Yine de silinsin mi? (geçmiş işlemler kalır ama bu para birimi listeden kalkar)`
+        : `"${cur.code}" para birimini silmek istediğine emin misin?`;
+      if(confirm(warn)){
+        currenciesRef.child(delKey).remove();
+      }
+    }
+  });
+
+  function resizeImage(file, maxDim){
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = e => {
+        const img = new Image();
+        img.onload = () => {
+          let w = img.width, h = img.height;
+          const scale = Math.min(1, maxDim / Math.max(w, h));
+          w = Math.round(w * scale); h = Math.round(h * scale);
+          const canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL('image/png'));
+        };
+        img.onerror = reject;
+        img.src = e.target.result;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  curLogo.addEventListener('change', async () => {
+    const file = curLogo.files[0];
+    if(!file) return;
+    try{
+      const dataUrl = await resizeImage(file, 96);
+      pendingLogo = dataUrl;
+      logoPreview.innerHTML = `<img src="${dataUrl}" />`;
+    }catch(err){
+      showStatus(curStatus, 'Logo okunamadı.', true);
+    }
+  });
+
+  document.getElementById('logoClearBtn').addEventListener('click', () => {
+    pendingLogo = '';
+    curLogo.value = '';
+    logoPreview.innerHTML = 'logo';
+  });
+
+  document.getElementById('curSaveBtn').addEventListener('click', () => {
+    const code = curCode.value.trim().toUpperCase();
+    const symbol = curSymbol.value.trim();
+    const name = curName.value.trim();
+
+    if(!code){
+      showStatus(curStatus, 'Kod zorunlu.', true);
+      return;
+    }
+    if(!editingKey){
+      const exists = Object.values(currencies).some(c => c.code === code);
+      if(exists){
+        showStatus(curStatus, 'Bu kod zaten kullanılıyor.', true);
+        return;
+      }
+    }
+
+    const goalVal = parseFloat(curGoal.value);
+    const payload = { code, symbol, name, goal: (!isNaN(goalVal) && goalVal > 0) ? goalVal : null };
+    if(pendingLogo === ''){ payload.logo = null; }
+    else if(pendingLogo){ payload.logo = pendingLogo; }
+
+    const promise = editingKey
+      ? currenciesRef.child(editingKey).update(payload)
+      : currenciesRef.push({ ...payload, createdAt: firebase.database.ServerValue.TIMESTAMP });
+
+    promise.then(() => {
+      showStatus(curStatus, 'Kaydedildi ✓', false);
+      setTimeout(closeForm, 400);
+    }).catch(err => showStatus(curStatus, 'Hata: ' + err.message, true));
+  });
+
+  /* ---------------- add / withdraw transaction ---------------- */
+  document.getElementById('addBtn').addEventListener('click', () => {
+    const currency = currencySelect.value;
+    const amountInput = document.getElementById('amount');
+    const amount = parseFloat(amountInput.value);
+    const note = document.getElementById('note').value.trim();
+
+    if(!currency){
+      showStatus(statusEl, 'Önce bir para birimi tanımla.', true);
+      return;
+    }
+    if(isNaN(amount) || amount <= 0){
+      showStatus(statusEl, 'Geçerli bir miktar gir.', true);
+      return;
+    }
+
+    entriesRef.push({
+      currency,
+      amount,
+      type: currentType,
+      note,
+      addedBy: currentUserEmail(),
+      timestamp: firebase.database.ServerValue.TIMESTAMP
+    }).then(() => {
+      showStatus(statusEl, currentType === 'deposit' ? 'Eklendi ✓' : 'Düşüldü ✓', false);
+      amountInput.value = '';
+      document.getElementById('note').value = '';
+      amountInput.focus();
+    }).catch(err => {
+      showStatus(statusEl, 'Hata: ' + err.message, true);
+    });
+  });
+
+  document.getElementById('clearBtn').addEventListener('click', () => {
+    document.getElementById('amount').value = '';
+    document.getElementById('note').value = '';
+    statusEl.textContent = '';
+  });
+
+  /* ---------------- undo toast ---------------- */
+  function showUndoToast(msg, onUndo){
+    const existing = document.querySelector('.toast');
+    if(existing) existing.remove();
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.innerHTML = `<span>${msg}</span><button>Geri al</button>`;
+    toast.querySelector('button').addEventListener('click', () => { onUndo(); toast.remove(); });
+    document.body.appendChild(toast);
+    setTimeout(() => { if(document.body.contains(toast)) toast.remove(); }, 6000);
+  }
+
+  /* ---------------- history ---------------- */
+  entriesRef.orderByChild('timestamp').on('value', (snapshot) => {
+    entriesData = snapshot.val() || {};
+    entriesEl.innerHTML = '';
+
+    const items = Object.entries(entriesData).filter(([,it]) => it && !it.deleted).sort((a,b) => (b[1].timestamp||0) - (a[1].timestamp||0));
+    countLabel.textContent = items.length + (items.length === 1 ? ' kayıt' : ' kayıt');
+
+    if(items.length === 0){
+      entriesEl.innerHTML = '<p class="empty">Henüz kayıt yok. İlk ekleyen sen ol.</p>';
+      renderDueBanners();
+      return;
+    }
+
+    items.forEach(([key, item]) => {
+      const cur = Object.values(currencies).find(c => c.code === item.currency);
+      const isWithdraw = item.type === 'withdraw';
+      const sign = isWithdraw ? '−' : '+';
+      const sym = cur ? (cur.symbol || cur.code) : item.currency;
+      const time = item.timestamp ? new Date(item.timestamp).toLocaleString('tr-TR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
+
+      const div = document.createElement('div');
+      div.className = 'entry';
+      div.innerHTML = `
+        <div class="cur-badge">${badgeHtml(cur || {code:item.currency})}</div>
+        <span class="amt ${isWithdraw ? 'wd' : 'dep'}">${sign}${sym}${Number(item.amount).toLocaleString('tr-TR',{minimumFractionDigits:2, maximumFractionDigits:2})}</span>
+        <span class="note">${item.note ? item.note : ''}</span>
+        ${item.addedBy ? `<span class="who">· ${item.addedBy}</span>` : ''}
+        <span class="time">${time}</span>
+        <button class="icon-btn danger" title="Sil">✕</button>
+      `;
+      div.querySelector('.icon-btn.danger').addEventListener('click', () => {
+        entriesRef.child(key).update({ deleted: true, deletedAt: firebase.database.ServerValue.TIMESTAMP });
+        showUndoToast('Kayıt silindi.', () => {
+          entriesRef.child(key).update({ deleted: null, deletedAt: null });
+        });
+      });
+      entriesEl.appendChild(div);
+    });
+
+    renderDueBanners();
+  }, (err) => {
+    showStatus(statusEl, 'Bağlantı hatası: ' + err.message, true);
+  });
+
+  /* ---------------- recurring transactions ---------------- */
+  const recList = document.getElementById('recList');
+  const recForm = document.getElementById('recForm');
+  const recCurrency = document.getElementById('recCurrency');
+  const recAmount = document.getElementById('recAmount');
+  const recType = document.getElementById('recType');
+  const recFrequency = document.getElementById('recFrequency');
+  const recNote = document.getElementById('recNote');
+  const recStatus = document.getElementById('recStatus');
+  const dueBanners = document.getElementById('dueBanners');
+
+  function periodKey(freq, date){
+    date = date || new Date();
+    if(freq === 'weekly'){
+      const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+      const dayNum = (d.getUTCDay() + 6) % 7;
+      d.setUTCDate(d.getUTCDate() - dayNum + 3);
+      const firstThursday = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
+      const week = 1 + Math.round(((d - firstThursday) / 86400000 - 3 + ((firstThursday.getUTCDay() + 6) % 7)) / 7);
+      return `${d.getUTCFullYear()}-W${String(week).padStart(2,'0')}`;
+    }
+    return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}`;
+  }
+
+  function renderRecurringSelect(){
+    const prev = recCurrency.value;
+    recCurrency.innerHTML = '';
+    Object.values(currencies).forEach(cur => {
+      const opt = document.createElement('option');
+      opt.value = cur.code;
+      opt.textContent = `${cur.symbol || cur.code} ${cur.code}`;
+      recCurrency.appendChild(opt);
+    });
+    if([...recCurrency.options].some(o => o.value === prev)) recCurrency.value = prev;
+  }
+
+  function renderRecurringList(){
+    const keys = Object.keys(recurringData);
+    if(keys.length === 0){
+      recList.innerHTML = '<div class="rec-empty">Henüz tekrarlayan işlem yok.</div>';
+      return;
+    }
+    recList.innerHTML = '';
+    keys.forEach(key => {
+      const rec = recurringData[key];
+      const cur = Object.values(currencies).find(c => c.code === rec.currency);
+      const sym = cur ? (cur.symbol || cur.code) : rec.currency;
+      const sign = rec.type === 'withdraw' ? '−' : '+';
+      const div = document.createElement('div');
+      div.className = 'rec-item';
+      div.innerHTML = `
+        <div class="rec-info">
+          <div>${sign}${sym}${Number(rec.amount).toLocaleString('tr-TR',{minimumFractionDigits:2, maximumFractionDigits:2})} ${rec.note ? '— ' + rec.note : ''}</div>
+          <div class="rec-freq">${rec.frequency === 'weekly' ? 'Haftalık' : 'Aylık'}</div>
+        </div>
+        <button class="icon-btn danger" title="Sil" data-del-rec="${key}">✕</button>
+      `;
+      recList.appendChild(div);
+    });
+  }
+
+  recList.addEventListener('click', e => {
+    const key = e.target.closest('[data-del-rec]')?.dataset.delRec;
+    if(!key) return;
+    if(confirm('Bu tekrarlayan işlemi silmek istediğine emin misin?')) recurringRef.child(key).remove();
+  });
+
+  document.getElementById('newRecBtn').addEventListener('click', () => {
+    recStatus.textContent = '';
+    recAmount.value = '';
+    recNote.value = '';
+    renderRecurringSelect();
+    recForm.classList.add('open');
+    recForm.scrollIntoView({behavior:'smooth', block:'nearest'});
+  });
+  document.getElementById('recCancelBtn').addEventListener('click', () => recForm.classList.remove('open'));
+
+  document.getElementById('recSaveBtn').addEventListener('click', () => {
+    const currency = recCurrency.value;
+    const amount = parseFloat(recAmount.value);
+    if(!currency){ showStatus(recStatus, 'Önce bir para birimi tanımla.', true); return; }
+    if(isNaN(amount) || amount <= 0){ showStatus(recStatus, 'Geçerli bir miktar gir.', true); return; }
+    recurringRef.push({
+      currency,
+      amount,
+      type: recType.value,
+      frequency: recFrequency.value,
+      note: recNote.value.trim(),
+      lastAppliedPeriod: null,
+      createdAt: firebase.database.ServerValue.TIMESTAMP
+    }).then(() => {
+      showStatus(recStatus, 'Kaydedildi ✓', false);
+      setTimeout(() => recForm.classList.remove('open'), 400);
+    }).catch(err => showStatus(recStatus, 'Hata: ' + err.message, true));
+  });
+
+  function renderDueBanners(){
+    const now = new Date();
+    const due = Object.entries(recurringData).filter(([,rec]) => periodKey(rec.frequency, now) !== rec.lastAppliedPeriod);
+    if(due.length === 0){ dueBanners.innerHTML = ''; return; }
+    dueBanners.innerHTML = '';
+    due.forEach(([key, rec]) => {
+      const cur = Object.values(currencies).find(c => c.code === rec.currency);
+      const sym = cur ? (cur.symbol || cur.code) : rec.currency;
+      const sign = rec.type === 'withdraw' ? '−' : '+';
+      const banner = document.createElement('div');
+      banner.className = 'due-banner';
+      banner.innerHTML = `
+        <div class="txt">${rec.frequency === 'weekly' ? 'Bu hafta' : 'Bu ay'}: <b>${sign}${sym}${Number(rec.amount).toLocaleString('tr-TR',{minimumFractionDigits:2, maximumFractionDigits:2})}</b>${rec.note ? ' — ' + rec.note : ''} henüz eklenmedi.</div>
+        <div class="acts">
+          <button class="btn btn-primary btn-sm" data-apply="${key}">Ekle</button>
+          <button class="btn btn-ghost btn-sm" data-skip="${key}">Bu dönemi atla</button>
+        </div>
+      `;
+      dueBanners.appendChild(banner);
+    });
+  }
+
+  dueBanners.addEventListener('click', e => {
+    const applyKey = e.target.closest('[data-apply]')?.dataset.apply;
+    const skipKey = e.target.closest('[data-skip]')?.dataset.skip;
+    const key = applyKey || skipKey;
+    if(!key) return;
+    const rec = recurringData[key];
+    if(!rec) return;
+    const pk = periodKey(rec.frequency);
+    if(applyKey){
+      entriesRef.push({
+        currency: rec.currency,
+        amount: rec.amount,
+        type: rec.type,
+        note: rec.note,
+        addedBy: currentUserEmail(),
+        timestamp: firebase.database.ServerValue.TIMESTAMP
+      });
+    }
+    recurringRef.child(key).update({ lastAppliedPeriod: pk });
+  });
+
+  currenciesRef.on('value', () => {
+    renderRecurringSelect();
+    renderDueBanners();
+  });
+
+  recurringRef.on('value', snap => {
+    recurringData = snap.val() || {};
+    renderRecurringList();
+    renderDueBanners();
+  });
+</script>
+</body>
+</html>

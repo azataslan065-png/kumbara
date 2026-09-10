@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Kumbara</title>
+<style>
+  :root{
+    --vault:#0F3B3A;
+    --vault-dark:#0A2B2A;
+    --vault-darker:#071F1E;
+    --gold:#D4A537;
+    --gold-light:#E8C468;
+    --clay:#E8A0A0;
+    --clay-dark:#C97C7C;
+    --cream:#F5EDE3;
+    --line:rgba(245,237,227,0.14);
+    --line-strong:rgba(245,237,227,0.24);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    min-height:100vh;
+    background:
+      radial-gradient(circle at 85% 0%, rgba(212,165,55,0.16), transparent 45%),
+      var(--vault);
+    color:var(--cream);
+    font-family:'Georgia', 'Iowan Old Style', serif;
+    display:flex;
+    justify-content:center;
+    padding:48px 20px 80px;
+  }
+  .wrap{ width:100%; max-width:640px; }
+  .eyebrow{
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+    font-size:13px;
+    color:var(--gold-light);
+    margin:0 0 6px;
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .dot{ width:7px; height:7px; border-radius:50%; background:var(--gold-light); animation:pulse 1.8s infinite; }
+  @keyframes pulse{ 0%,100%{ opacity:1; } 50%{ opacity:0.3; } }
+  h1{ font-size:38px; font-weight:400; letter-spacing:-0.01em; margin:0 0 40px; }
+  h1 em{ font-style:italic; color:var(--gold-light); }
+
+  .totals{ display:flex; flex-direction:column; gap:1px; background:var(--line); border:1px solid var(--line); border-radius:4px; overflow:hidden; }
+  .total-row{ display:flex; align-items:center; gap:14px; justify-content:space-between; padding:18px 24px; background:var(--vault-dark); }
+  .total-left{ display:flex; align-items:center; gap:12px; min-width:0; }
+  .cur-badge{
+    width:34px; height:34px; border-radius:50%; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+    background:var(--vault-darker); border:1px solid var(--line);
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size:13px; color:var(--gold-light);
+    overflow:hidden;
+  }
+  .cur-badge img{ width:100%; height:100%; object-fit:cover; }
+  .total-row .cur{ font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size:13px; color:rgba(245,237,227,0.5); }
+  .total-row .val{ font-size:28px; letter-spacing:-0.01em; transition:opacity .3s; }
+  .total-row .val.flash{ color:var(--gold-light); }
+
+  .empty-state{ text-align:center; padding:40px 0; color:rgba(245,237,227,0.4); font-style:italic; }
+
+  .meta{ display:flex; justify-content:space-between; margin-top:20px; font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size:12px; color:rgba(245,237,227,0.35); }
+
+  /* ---------- detailed history ---------- */
+  .history{ margin-top:52px; }
+  .history-head{ display:flex; justify-content:space-between; align-items:baseline; border-bottom:1px solid var(--line); padding-bottom:10px; margin-bottom:4px; }
+  .history-head h2{ font-size:16px; font-weight:400; margin:0; color:rgba(245,237,227,0.75); }
+  .history-head span{ font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size:12px; color:rgba(245,237,227,0.4); }
+  .filter-row{ display:flex; gap:8px; margin:14px 0 4px; flex-wrap:wrap; }
+  .chip{
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+    font-size:11px;
+    padding:7px 12px;
+    border-radius:20px;
+    border:1px solid var(--line-strong);
+    background:transparent;
+    color:rgba(245,237,227,0.55);
+    cursor:pointer;
+    transition:border-color .15s, color .15s, background-color .15s;
+  }
+  .chip.on{ background:var(--gold); border-color:var(--gold); color:var(--vault-darker); font-weight:600; }
+  .entry{ display:flex; align-items:center; gap:12px; padding:14px 0; border-bottom:1px solid var(--line); }
+  .entry .cur-badge{ width:30px; height:30px; font-size:11px; }
+  .entry .amt{ font-size:19px; flex:1; }
+  .entry .amt.dep{ color:var(--gold-light); }
+  .entry .amt.wd{ color:var(--clay); }
+  .entry .note{ font-size:13px; color:rgba(245,237,227,0.45); flex:1; }
+  .entry .time{ font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size:11px; color:rgba(245,237,227,0.35); flex-shrink:0; }
+  .empty{ color:rgba(245,237,227,0.35); font-size:14px; padding:20px 0; font-style:italic; }
+
+  .load-more{
+    display:block;
+    width:100%;
+    margin-top:8px;
+    padding:12px;
+    background:transparent;
+    border:1px solid var(--line);
+    border-radius:3px;
+    color:rgba(245,237,227,0.55);
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+    font-size:12px;
+    cursor:pointer;
+    transition:border-color .15s, color .15s;
+  }
+  .load-more:hover{ border-color:var(--gold); color:var(--gold-light); }
+
+  /* ---------- goal bars ---------- */
+  .goal-wrap{ background:var(--vault-dark); padding:0 24px 14px; }
+  .goal-track{ height:5px; background:var(--vault-darker); border-radius:3px; overflow:hidden; }
+  .goal-fill{ height:100%; background:var(--gold); transition:width .4s; }
+  .goal-text{ display:flex; justify-content:space-between; font-family:ui-monospace,'SF Mono',Menlo,monospace; font-size:10px; color:rgba(245,237,227,0.4); margin-top:5px; }
+
+  /* ---------- grand total ---------- */
+  .grand-total{ margin-top:20px; padding:20px 24px; background:var(--vault-dark); border:1px solid var(--line); border-radius:4px; text-align:center; }
+  .grand-total .label{ font-family:ui-monospace,'SF Mono',Menlo,monospace; font-size:11px; color:rgba(245,237,227,0.45); margin-bottom:6px; }
+  .grand-total .amount{ font-size:32px; color:var(--gold-light); }
+  .grand-total .fx-note{ font-size:11px; color:rgba(245,237,227,0.35); margin-top:8px; font-style:italic; }
+
+  /* ---------- charts ---------- */
+  .charts{ display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:20px; }
+  @media(max-width:520px){ .charts{ grid-template-columns:1fr; } }
+  .chart-card{ background:var(--vault-dark); border:1px solid var(--line); border-radius:4px; padding:18px; }
+  .chart-card h3{ margin:0 0 14px; font-size:12px; font-weight:400; color:rgba(245,237,227,0.6); font-family:ui-monospace,'SF Mono',Menlo,monospace; letter-spacing:0.02em; }
+  .chart-empty{ color:rgba(245,237,227,0.3); font-size:12px; font-style:italic; padding:30px 0; text-align:center; }
+  .donut-legend{ display:flex; flex-wrap:wrap; gap:7px 14px; margin-top:12px; justify-content:center; }
+  .donut-legend .item{ display:flex; align-items:center; gap:6px; font-size:11px; font-family:ui-monospace,'SF Mono',Menlo,monospace; color:rgba(245,237,227,0.55); }
+  .donut-legend .swatch{ width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+
+  /* ---------- monthly summary ---------- */
+  .summary-box{ margin-top:20px; padding:16px 24px; background:var(--vault-dark); border:1px solid var(--line); border-radius:4px; font-family:ui-monospace,'SF Mono',Menlo,monospace; font-size:12px; color:rgba(245,237,227,0.55); display:flex; flex-wrap:wrap; gap:8px 20px; }
+  .summary-box b{ color:var(--gold-light); font-family:'Georgia',serif; font-size:14px; }
+
+  /* ---------- search ---------- */
+  .search-input{ width:100%; background:var(--vault-darker); border:1px solid var(--line); border-radius:3px; padding:10px 12px; color:var(--cream); font-family:'Georgia',serif; font-size:14px; margin:14px 0 0; outline:none; transition:border-color .2s; }
+  .search-input::placeholder{ color:rgba(245,237,227,0.3); }
+  .search-input:focus{ border-color:var(--gold); }
+
+  .entry .who{ font-family:ui-monospace,'SF Mono',Menlo,monospace; font-size:10px; color:rgba(245,237,227,0.3); flex-shrink:0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="eyebrow"><span class="dot"></span> KUMBARA / canlı</p>
+  <h1>Şu anda <em>ne kadar</em> var?</h1>
+
+  <div class="totals" id="totals">
+    <div class="empty-state">Bank'tan veri geldiğinde burada görünecek.</div>
+  </div>
+
+  <div class="grand-total" id="grandTotal" style="display:none;"></div>
+
+  <div class="charts">
+    <div class="chart-card">
+      <h3>Para birimi dağılımı</h3>
+      <div id="donutChart"><div class="chart-empty">Yükleniyor…</div></div>
+    </div>
+    <div class="chart-card">
+      <h3>Bakiye geçmişi</h3>
+      <div id="lineChart"><div class="chart-empty">Yükleniyor…</div></div>
+    </div>
+  </div>
+
+  <div class="summary-box" id="monthlySummary"></div>
+
+  <div class="meta">
+    <span id="entryCount">0 işlem</span>
+    <span id="lastUpdate">—</span>
+  </div>
+
+  <div class="history">
+    <div class="history-head">
+      <h2>İşlem geçmişi</h2>
+      <span id="histCount">0 kayıt</span>
+    </div>
+    <input type="text" class="search-input" id="searchInput" placeholder="Notlarda ara…" />
+    <div class="filter-row" id="filterRow">
+      <button class="chip on" data-filter="all">Tümü</button>
+    </div>
+    <div id="entries"></div>
+    <button class="load-more" id="loadMoreBtn" style="display:none;">Daha fazla göster</button>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyCV9fRLZ30pTDats1DZs8_xz4droboUfro",
+    authDomain: "kumbara-4919d.firebaseapp.com",
+    databaseURL: "https://kumbara-4919d-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "kumbara-4919d",
+    storageBucket: "kumbara-4919d.firebasestorage.app",
+    messagingSenderId: "277764488635",
+    appId: "1:277764488635:web:0b08f76737de421f0f589e"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+  const currenciesRef = db.ref('kumbara/currencies');
+  const entriesRef = db.ref('kumbara/entries');
+
+  const totalsEl = document.getElementById('totals');
+  const countEl = document.getElementById('entryCount');
+  const updateEl = document.getElementById('lastUpdate');
+  const entriesEl = document.getElementById('entries');
+  const histCount = document.getElementById('histCount');
+  const filterRow = document.getElementById('filterRow');
+  const loadMoreBtn = document.getElementById('loadMoreBtn');
+  const grandTotalEl = document.getElementById('grandTotal');
+  const donutEl = document.getElementById('donutChart');
+  const lineEl = document.getElementById('lineChart');
+  const summaryEl = document.getElementById('monthlySummary');
+  const searchInput = document.getElementById('searchInput');
+
+  let currencies = {};
+  let entriesData = {};
+  let previousTotals = {};
+  let lastTotals = {};
+  let firstLoad = true;
+  let activeFilter = 'all';
+  let searchTerm = '';
+  let visibleCount = 15;
+  let fxRates = null;
+  const PAGE_SIZE = 15;
+  const PALETTE = ['#D4A537','#E8A0A0','#E8C468','#C97C7C','#8FBBB3','#B98CC7','#7FA0C9','#C9A87F'];
+
+  searchInput.addEventListener('input', () => {
+    searchTerm = searchInput.value.trim().toLowerCase();
+    visibleCount = PAGE_SIZE;
+    renderHistory(true);
+  });
+
+  fetch('https://open.er-api.com/v6/latest/TRY').then(r => r.json()).then(d => {
+    if(d && d.result === 'success' && d.rates){
+      fxRates = d.rates;
+      fxRates.TRY = 1;
+      renderGrandTotal();
+      renderDonut();
+      renderLineChart();
+    }
+  }).catch(() => { /* kur bilgisi olmadan devam */ });
+
+  function convertToTRY(code, amount){
+    if(!fxRates) return null;
+    const r = fxRates[code];
+    if(!r) return null;
+    return amount / r;
+  }
+
+  function badgeHtml(cur, code){
+    if(cur && cur.logo) return `<img src="${cur.logo}" alt="${code}" />`;
+    if(cur && cur.symbol) return cur.symbol;
+    return code;
+  }
+  function curByCode(code){
+    return Object.values(currencies).find(c => c.code === code);
+  }
+
+  currenciesRef.on('value', snap => {
+    currencies = snap.val() || {};
+    renderTotals();
+    renderHistory();
+    renderGrandTotal();
+    renderDonut();
+    renderLineChart();
+  });
+
+  entriesRef.orderByChild('timestamp').on('value', (snapshot) => {
+    entriesData = snapshot.val() || {};
+    updateEl.textContent = 'güncellendi: ' + new Date().toLocaleTimeString('tr-TR');
+    renderTotals();
+    renderHistory();
+    renderGrandTotal();
+    renderDonut();
+    renderLineChart();
+    renderMonthlySummary();
+  }, (err) => {
+    totalsEl.innerHTML = '<div class="empty-state">Bağlantı hatası: ' + err.message + '</div>';
+  });
+
+  function renderTotals(){
+    const totals = {};
+    let count = 0;
+    Object.values(entriesData).forEach(item => {
+      if(!item || !item.currency || item.deleted) return;
+      const signed = item.type === 'withdraw' ? -Number(item.amount||0) : Number(item.amount||0);
+      totals[item.currency] = (totals[item.currency] || 0) + signed;
+      count++;
+    });
+
+    countEl.textContent = count + (count === 1 ? ' işlem' : ' işlem');
+
+    const currs = Object.keys(totals);
+    if(currs.length === 0){
+      totalsEl.innerHTML = '<div class="empty-state">Bank’tan veri geldiğinde burada görünecek.</div>';
+      previousTotals = {};
+      lastTotals = {};
+      firstLoad = false;
+      return;
+    }
+
+    currs.sort();
+    totalsEl.innerHTML = '';
+    currs.forEach(code => {
+      const cur = curByCode(code);
+      const value = totals[code];
+      const prev = previousTotals[code];
+      const changed = !firstLoad && prev !== undefined && prev !== value;
+
+      let goalHtml = '';
+      if(cur && cur.goal && cur.goal > 0){
+        const pct = Math.max(0, Math.min(100, (value / cur.goal) * 100));
+        goalHtml = `
+          <div class="goal-wrap">
+            <div class="goal-track"><div class="goal-fill" style="width:${pct.toFixed(1)}%"></div></div>
+            <div class="goal-text"><span>%${pct.toFixed(0)}</span><span>hedef: ${(cur.symbol||'')}${cur.goal.toLocaleString('tr-TR')}</span></div>
+          </div>`;
+      }
+
+      const wrap = document.createElement('div');
+      wrap.className = 'total-row-wrap';
+      wrap.innerHTML = `
+        <div class="total-row">
+          <div class="total-left">
+            <div class="cur-badge">${badgeHtml(cur, code)}</div>
+            <span class="cur">${code}</span>
+          </div>
+          <span class="val${changed ? ' flash' : ''}">${(cur && cur.symbol) || ''}${value.toLocaleString('tr-TR',{minimumFractionDigits:2, maximumFractionDigits:2})}</span>
+        </div>
+        ${goalHtml}
+      `;
+      totalsEl.appendChild(wrap);
+      if(changed) setTimeout(() => { const v = wrap.querySelector('.val'); if(v) v.classList.remove('flash'); }, 900);
+    });
+
+    previousTotals = totals;
+    lastTotals = totals;
+    firstLoad = false;
+  }
+
+  function renderGrandTotal(){
+    const codes = Object.keys(lastTotals);
+    if(codes.length === 0){ grandTotalEl.style.display = 'none'; return; }
+    grandTotalEl.style.display = 'block';
+    if(!fxRates){
+      grandTotalEl.innerHTML = '<div class="label">TOPLAM (₺ karşılığı)</div><div class="fx-note">Kur bilgisi yükleniyor…</div>';
+      return;
+    }
+    let sum = 0;
+    const missing = [];
+    codes.forEach(c => {
+      const conv = convertToTRY(c, lastTotals[c]);
+      if(conv === null) missing.push(c); else sum += conv;
+    });
+    grandTotalEl.innerHTML = `
+      <div class="label">TOPLAM (₺ karşılığı, tahmini)</div>
+      <div class="amount">₺${sum.toLocaleString('tr-TR',{minimumFractionDigits:2, maximumFractionDigits:2})}</div>
+      ${missing.length ? `<div class="fx-note">${missing.join(', ')} kur bulunamadığı için dahil edilmedi</div>` : ''}
+    `;
+  }
+
+  function drawDonut(data){
+    const total = data.reduce((s,d) => s + d.value, 0);
+    if(total <= 0) return '<div class="chart-empty">Henüz veri yok.</div>';
+    const r = 70, cx = 90, cy = 90, strokeW = 22;
+    const circumference = 2 * Math.PI * r;
+    let offset = 0;
+    let circles = '';
+    data.forEach(d => {
+      const dash = (d.value / total) * circumference;
+      circles += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${d.color}" stroke-width="${strokeW}" stroke-dasharray="${dash.toFixed(2)} ${(circumference-dash).toFixed(2)}" stroke-dashoffset="${(-offset).toFixed(2)}" transform="rotate(-90 ${cx} ${cy})"/>`;
+      offset += dash;
+    });
+    const legend = data.map(d => `<div class="item"><span class="swatch" style="background:${d.color}"></span>${d.label} · %${Math.round(d.value/total*100)}</div>`).join('');
+    return `<svg viewBox="0 0 180 180" style="width:160px;height:160px;display:block;margin:0 auto;">${circles}</svg><div class="donut-legend">${legend}</div>`;
+  }
+
+  function renderDonut(){
+    if(!fxRates){ donutEl.innerHTML = '<div class="chart-empty">Kur verisi yükleniyor…</div>'; return; }
+    const codes = Object.keys(lastTotals).filter(c => lastTotals[c] > 0);
+    const data = codes.map((c,i) => {
+      const conv = convertToTRY(c, lastTotals[c]);
+      return conv === null ? null : { label:c, value:conv, color:PALETTE[i % PALETTE.length] };
+    }).filter(Boolean);
+    donutEl.innerHTML = drawDonut(data);
+  }
+
+  function drawLine(pts, symbol){
+    const W = 280, H = 140, PAD = 10;
+    const ts = pts.map(p => p.t), vs = pts.map(p => p.v);
+    const minT = Math.min(...ts), maxT = Math.max(...ts);
+    const minV = Math.min(...vs, 0), maxV = Math.max(...vs, 0);
+    const spanT = (maxT - minT) || 1, spanV = (maxV - minV) || 1;
+    const x = t => PAD + ((t - minT) / spanT) * (W - 2*PAD);
+    const y = v => H - PAD - ((v - minV) / spanV) * (H - 2*PAD);
+    const path = pts.map((p,i) => (i===0?'M':'L') + x(p.t).toFixed(1) + ',' + y(p.v).toFixed(1)).join(' ');
+    const last = pts[pts.length - 1];
+    const zeroY = y(0);
+    return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:140px;overflow:visible;">
+      <line x1="0" y1="${zeroY.toFixed(1)}" x2="${W}" y2="${zeroY.toFixed(1)}" stroke="rgba(245,237,227,0.12)" stroke-width="1"/>
+      <path d="${path}" fill="none" stroke="#E8C468" stroke-width="2"/>
+      <circle cx="${x(last.t).toFixed(1)}" cy="${y(last.v).toFixed(1)}" r="3" fill="#E8C468"/>
+    </svg>
+    <div style="display:flex;justify-content:space-between;margin-top:6px;font-family:ui-monospace,monospace;font-size:11px;color:rgba(245,237,227,0.4);">
+      <span>${symbol}${minV.toLocaleString('tr-TR',{maximumFractionDigits:0})}</span>
+      <span>${symbol}${maxV.toLocaleString('tr-TR',{maximumFractionDigits:0})}</span>
+    </div>`;
+  }
+
+  function getSeriesForChart(){
+    let items = Object.values(entriesData).filter(it => it && it.currency && !it.deleted).sort((a,b) => (a.timestamp||0) - (b.timestamp||0));
+    if(activeFilter !== 'all'){
+      items = items.filter(it => it.currency === activeFilter);
+      let running = 0;
+      const pts = items.map(it => { running += (it.type === 'withdraw' ? -1 : 1) * Number(it.amount||0); return { t: it.timestamp||0, v: running }; });
+      const cur = curByCode(activeFilter);
+      return { pts, symbol: (cur && cur.symbol) || activeFilter };
+    }
+    if(!fxRates) return null;
+    let running = 0;
+    const pts = items.map(it => {
+      const conv = convertToTRY(it.currency, Number(it.amount||0));
+      if(conv === null) return null;
+      running += (it.type === 'withdraw' ? -1 : 1) * conv;
+      return { t: it.timestamp||0, v: running };
+    }).filter(Boolean);
+    return { pts, symbol: '₺' };
+  }
+
+  function renderLineChart(){
+    const series = getSeriesForChart();
+    if(!series || series.pts.length < 2){
+      lineEl.innerHTML = '<div class="chart-empty">Grafik için yeterli veri yok.</div>';
+      return;
+    }
+    lineEl.innerHTML = drawLine(series.pts, series.symbol);
+  }
+
+  function renderMonthlySummary(){
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    const netByCode = {};
+    Object.values(entriesData).forEach(it => {
+      if(!it || it.deleted || !it.currency || !it.timestamp || it.timestamp < monthStart) return;
+      const signed = (it.type === 'withdraw' ? -1 : 1) * Number(it.amount||0);
+      netByCode[it.currency] = (netByCode[it.currency] || 0) + signed;
+    });
+    const codes = Object.keys(netByCode);
+    if(codes.length === 0){ summaryEl.innerHTML = '<span>Bu ay henüz işlem yok.</span>'; return; }
+    summaryEl.innerHTML = codes.sort().map(c => {
+      const cur = curByCode(c);
+      const sym = (cur && cur.symbol) || c;
+      const v = netByCode[c];
+      const sign = v >= 0 ? '+' : '−';
+      return `<span>Bu ay ${c}: <b>${sign}${sym}${Math.abs(v).toLocaleString('tr-TR',{minimumFractionDigits:2, maximumFractionDigits:2})}</b></span>`;
+    }).join('');
+  }
+
+  function renderFilters(){
+    const codes = [...new Set(Object.values(entriesData).filter(e => e && !e.deleted).map(e => e.currency).filter(Boolean))].sort();
+    const existingBtns = [...filterRow.querySelectorAll('.chip')].map(b => b.dataset.filter);
+    const wanted = ['all', ...codes];
+    if(existingBtns.join(',') === wanted.join(',')) return;
+
+    filterRow.innerHTML = '';
+    wanted.forEach(code => {
+      const btn = document.createElement('button');
+      btn.className = 'chip' + (code === activeFilter ? ' on' : '');
+      btn.dataset.filter = code;
+      btn.textContent = code === 'all' ? 'Tümü' : code;
+      filterRow.appendChild(btn);
+    });
+  }
+
+  filterRow.addEventListener('click', (e) => {
+    const btn = e.target.closest('.chip');
+    if(!btn) return;
+    activeFilter = btn.dataset.filter;
+    visibleCount = PAGE_SIZE;
+    filterRow.querySelectorAll('.chip').forEach(b => b.classList.toggle('on', b === btn));
+    renderHistory(true);
+    renderLineChart();
+  });
+
+  loadMoreBtn.addEventListener('click', () => {
+    visibleCount += PAGE_SIZE;
+    renderHistory(true);
+  });
+
+  function renderHistory(skipFilterRebuild){
+    if(!skipFilterRebuild) renderFilters();
+
+    let items = Object.entries(entriesData).filter(([,it]) => it && !it.deleted).sort((a,b) => (b[1].timestamp||0) - (a[1].timestamp||0));
+    if(activeFilter !== 'all') items = items.filter(([,it]) => it.currency === activeFilter);
+    if(searchTerm) items = items.filter(([,it]) => (it.note || '').toLowerCase().includes(searchTerm));
+
+    histCount.textContent = items.length + (items.length === 1 ? ' kayıt' : ' kayıt');
+
+    if(items.length === 0){
+      entriesEl.innerHTML = '<p class="empty">Bu filtreyle eşleşen kayıt yok.</p>';
+      loadMoreBtn.style.display = 'none';
+      return;
+    }
+
+    const shown = items.slice(0, visibleCount);
+    entriesEl.innerHTML = '';
+    shown.forEach(([key, item]) => {
+      const cur = curByCode(item.currency);
+      const isWithdraw = item.type === 'withdraw';
+      const sign = isWithdraw ? '−' : '+';
+      const sym = (cur && cur.symbol) || item.currency;
+      const time = item.timestamp ? new Date(item.timestamp).toLocaleString('tr-TR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
+
+      const div = document.createElement('div');
+      div.className = 'entry';
+      div.innerHTML = `
+        <div class="cur-badge">${badgeHtml(cur, item.currency)}</div>
+        <span class="amt ${isWithdraw ? 'wd' : 'dep'}">${sign}${sym}${Number(item.amount).toLocaleString('tr-TR',{minimumFractionDigits:2, maximumFractionDigits:2})}</span>
+        <span class="note">${item.note ? item.note : ''}</span>
+        ${item.addedBy ? `<span class="who">· ${item.addedBy}</span>` : ''}
+        <span class="time">${time}</span>
+      `;
+      entriesEl.appendChild(div);
+    });
+
+    loadMoreBtn.style.display = items.length > shown.length ? 'block' : 'none';
+  }
+</script>
+</body>
+</html>
