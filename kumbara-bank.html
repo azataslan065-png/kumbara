@@ -304,6 +304,50 @@
   .toast button{ background:none; border:none; color:var(--gold-light); font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size:12px; cursor:pointer; text-decoration:underline; }
 
   .entry .who{ font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size:10px; color:rgba(245,237,227,0.3); }
+
+  /* ---------- entry row (iki satir: tutar + ayrinti) ---------- */
+  .entry-main{ flex:1; min-width:0; }
+  .entry-top{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .entry-top .amt{ flex:0 0 auto; }
+  .entry-sub{
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+    font-size:11px;
+    color:rgba(245,237,227,0.35);
+    margin-top:4px;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
+  .entry-sub .note-txt{ color:rgba(245,237,227,0.55); font-family:'Georgia',serif; font-size:13px; }
+  .entry-actions{ display:flex; gap:6px; flex-shrink:0; }
+  .tag-chip{
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+    font-size:10px;
+    padding:3px 8px;
+    border-radius:10px;
+    border:1px solid var(--line-strong);
+    color:rgba(245,237,227,0.5);
+    flex-shrink:0;
+  }
+  .tag-chip.pot{ color:var(--gold-light); border-color:rgba(212,165,55,0.4); }
+
+  /* ---------- inline entry editor ---------- */
+  .entry-edit{
+    background:var(--vault-darker);
+    border:1px solid var(--gold);
+    border-radius:4px;
+    padding:20px;
+    margin:12px 0 18px;
+  }
+  .entry-edit .grid{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .entry-edit .grid .row{ margin-bottom:0; }
+  .entry-edit .actions{ margin-top:18px; }
+
+  /* ---------- trash ---------- */
+  .trash-item .cur-info{ opacity:0.7; }
+  .trash-amt{ font-size:16px; }
+  .trash-amt.wd{ color:var(--clay); }
+  .trash-amt.dep{ color:var(--gold-light); }
 </style>
 </head>
 <body>
@@ -380,6 +424,49 @@
     </div>
   </section>
 
+  <!-- POTS -->
+  <section>
+    <div class="section-head">
+      <h2>Bölmeler</h2>
+      <button class="btn btn-outline btn-sm" id="newPotBtn">+ Yeni bölme</button>
+    </div>
+    <div class="cur-list" id="potList"></div>
+
+    <div class="cur-form" id="potForm">
+      <div class="row">
+        <label for="potName">Ad</label>
+        <input type="text" id="potName" placeholder="örn. Tatil" maxlength="40" />
+      </div>
+      <div class="grid" style="margin-top:16px;">
+        <div class="row">
+          <label for="potCurrency">Para birimi</label>
+          <select id="potCurrency"></select>
+        </div>
+        <div class="row">
+          <label for="potGoal">Hedef (opsiyonel)</label>
+          <input type="number" id="potGoal" placeholder="örn. 25000" step="0.01" min="0" />
+        </div>
+      </div>
+      <p class="status" id="potStatus"></p>
+      <div class="actions">
+        <button class="btn btn-primary" id="potSaveBtn">Kaydet</button>
+        <button class="btn btn-ghost" id="potCancelBtn">Vazgeç</button>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:14px;">
+      <div class="row" style="margin-bottom:0;">
+        <label for="totalGoal">Genel hedef (₺)</label>
+        <input type="number" id="totalGoal" placeholder="örn. 100000" step="0.01" min="0" />
+        <p class="hint">Tüm para birimlerinin ₺ karşılığı için tek hedef. Boş bırakırsan gösterilmez.</p>
+      </div>
+      <div class="actions" style="margin-top:14px;">
+        <button class="btn btn-outline btn-sm" id="totalGoalSaveBtn">Hedefi kaydet</button>
+      </div>
+      <p class="status" id="totalGoalStatus"></p>
+    </div>
+  </section>
+
   <!-- ADD / WITHDRAW TRANSACTION -->
   <section>
     <div class="section-head"><h2>İşlem</h2></div>
@@ -404,6 +491,16 @@
       <div class="row">
         <label for="note">Not (opsiyonel)</label>
         <input type="text" id="note" placeholder="örn. harçlık, bahşiş..." />
+      </div>
+      <div class="row amount-row">
+        <div class="row">
+          <label for="entryTag">Etiket</label>
+          <select id="entryTag"></select>
+        </div>
+        <div class="row">
+          <label for="entryPot">Bölme</label>
+          <select id="entryPot"></select>
+        </div>
       </div>
       <div class="row">
         <label for="entryDate">Tarih</label>
@@ -473,6 +570,18 @@
     <div id="entries"></div>
   </section>
 
+  <!-- TRASH -->
+  <section>
+    <div class="section-head">
+      <h2>Silinenler</h2>
+      <span class="count" id="trashCount">0 kayıt</span>
+    </div>
+    <div class="cur-list" id="trashList"></div>
+    <div class="actions" id="trashActions" style="display:none;">
+      <button class="btn btn-danger btn-sm" id="purgeAllBtn">Tümünü kalıcı sil</button>
+    </div>
+  </section>
+
   <!-- BACKUP -->
   <section>
     <div class="section-head"><h2>Yedek</h2></div>
@@ -532,6 +641,10 @@
   }
 
   const recurringRef = db.ref('kumbara/recurring');
+  const potsRef = db.ref('kumbara/pots');
+  const settingsRef = db.ref('kumbara/settings');
+
+  const TAGS = ['Harçlık','Maaş','Hediye','Bahşiş','Satış','Tasarruf','Fatura','Alışveriş','Diğer'];
 
   /* ---------------- kur damgasi ----------------
      Her kayda o andaki kuru yaziyoruz: 1 TRY = rate birim.
@@ -581,6 +694,15 @@
   let currencies = {}; // key -> data
   let entriesData = {};
   let recurringData = {};
+  let potsData = {};
+  let settingsData = {};
+
+  // kullanici metnini HTML'e basmadan once kacir
+  function esc(v){
+    return String(v == null ? '' : v)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
 
   const statusEl = document.getElementById('status');
   const entriesEl = document.getElementById('entries');
@@ -684,6 +806,27 @@
     }
     return (cur && cur.symbol) ? cur.symbol : (cur ? cur.code : '?');
   }
+
+  /* ---------------- etiket + bolme secicileri ---------------- */
+  function fillTagSelect(sel, value){
+    sel.innerHTML = '<option value="">— etiket yok —</option>' +
+      TAGS.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join('');
+    sel.value = value && TAGS.includes(value) ? value : '';
+  }
+
+  // yalnizca secili para birimine ait bolmeleri goster
+  function fillPotSelect(sel, code, value){
+    const opts = Object.entries(potsData).filter(([,p]) => !code || p.currency === code);
+    sel.innerHTML = '<option value="">— bölme yok —</option>' +
+      opts.map(([k,p]) => `<option value="${k}">${esc(p.name || 'adsız')}</option>`).join('');
+    sel.value = (value && opts.some(([k]) => k === value)) ? value : '';
+  }
+
+  const entryTag = document.getElementById('entryTag');
+  const entryPot = document.getElementById('entryPot');
+  fillTagSelect(entryTag, '');
+
+  currencySelect.addEventListener('change', () => fillPotSelect(entryPot, currencySelect.value, ''));
 
   /* ---------------- type toggle ---------------- */
   let currentType = 'deposit';
@@ -904,6 +1047,8 @@
       amount,
       type: currentType,
       note,
+      tag: entryTag.value || null,
+      pot: entryPot.value || null,
       addedBy: currentUserEmail(),
       timestamp: stamp
     }, currency)).then(() => {
@@ -920,8 +1065,153 @@
   document.getElementById('clearBtn').addEventListener('click', () => {
     document.getElementById('amount').value = '';
     document.getElementById('note').value = '';
+    entryTag.value = '';
+    entryPot.value = '';
     resetDateField();
     statusEl.textContent = '';
+  });
+
+  /* ---------------- bolmeler ---------------- */
+  const potList = document.getElementById('potList');
+  const potForm = document.getElementById('potForm');
+  const potName = document.getElementById('potName');
+  const potCurrency = document.getElementById('potCurrency');
+  const potGoal = document.getElementById('potGoal');
+  const potStatus = document.getElementById('potStatus');
+  let editingPot = null;
+
+  function potBalance(key){
+    const pot = potsData[key];
+    if(!pot) return 0;
+    let sum = 0;
+    Object.values(entriesData).forEach(it => {
+      if(!it || it.deleted || it.pot !== key) return;
+      sum += (it.type === 'withdraw' ? -1 : 1) * Number(it.amount || 0);
+    });
+    return sum;
+  }
+
+  function renderPotCurrencySelect(value){
+    potCurrency.innerHTML = '';
+    Object.values(currencies).forEach(cur => {
+      const opt = document.createElement('option');
+      opt.value = cur.code;
+      opt.textContent = `${cur.symbol || cur.code} ${cur.code}`;
+      potCurrency.appendChild(opt);
+    });
+    if(value) potCurrency.value = value;
+  }
+
+  function renderPotList(){
+    const keys = Object.keys(potsData);
+    if(keys.length === 0){
+      potList.innerHTML = '<div class="cur-empty">Henüz bölme yok. Bölme, parayı amaçlara ayırmak için.</div>';
+      return;
+    }
+    potList.innerHTML = '';
+    keys.forEach(key => {
+      const pot = potsData[key];
+      const cur = Object.values(currencies).find(c => c.code === pot.currency);
+      const sym = (cur && cur.symbol) || pot.currency || '';
+      const bal = potBalance(key);
+      const goalTxt = pot.goal > 0
+        ? ` / ${sym}${Number(pot.goal).toLocaleString('tr-TR')}`
+        : '';
+      const div = document.createElement('div');
+      div.className = 'cur-item';
+      div.innerHTML = `
+        <div class="cur-badge">${esc((cur && cur.symbol) || pot.currency || '?')}</div>
+        <div class="cur-info">
+          <div class="cur-code">${esc(pot.name || 'adsız')}</div>
+          <div class="cur-name">${sym}${bal.toLocaleString('tr-TR',{minimumFractionDigits:2, maximumFractionDigits:2})}${goalTxt}</div>
+        </div>
+        <div class="cur-actions">
+          <button class="icon-btn" title="Düzenle" data-pot-edit="${key}">✎</button>
+          <button class="icon-btn danger" title="Sil" data-pot-del="${key}">✕</button>
+        </div>
+      `;
+      potList.appendChild(div);
+    });
+  }
+
+  function openPotForm(key){
+    editingPot = key || null;
+    potStatus.textContent = '';
+    if(key){
+      const pot = potsData[key];
+      potName.value = pot.name || '';
+      renderPotCurrencySelect(pot.currency);
+      potGoal.value = pot.goal || '';
+    } else {
+      potName.value = '';
+      renderPotCurrencySelect();
+      potGoal.value = '';
+    }
+    potForm.classList.add('open');
+    potForm.scrollIntoView({behavior:'smooth', block:'nearest'});
+  }
+
+  document.getElementById('newPotBtn').addEventListener('click', () => openPotForm(null));
+  document.getElementById('potCancelBtn').addEventListener('click', () => {
+    potForm.classList.remove('open');
+    editingPot = null;
+  });
+
+  potList.addEventListener('click', e => {
+    const editKey = e.target.closest('[data-pot-edit]')?.dataset.potEdit;
+    const delKey = e.target.closest('[data-pot-del]')?.dataset.potDel;
+    if(editKey) openPotForm(editKey);
+    if(delKey){
+      const used = Object.values(entriesData).filter(it => it && !it.deleted && it.pot === delKey).length;
+      const name = potsData[delKey]?.name || 'bölme';
+      const warn = used > 0
+        ? `"${name}" bölmesine bağlı ${used} işlem var. Silinirse işlemler kalır ama bölmesiz görünür. Devam edilsin mi?`
+        : `"${name}" bölmesini silmek istediğine emin misin?`;
+      if(confirm(warn)) potsRef.child(delKey).remove();
+    }
+  });
+
+  document.getElementById('potSaveBtn').addEventListener('click', () => {
+    const name = potName.value.trim();
+    const currency = potCurrency.value;
+    if(!name){ showStatus(potStatus, 'Ad zorunlu.', true); return; }
+    if(!currency){ showStatus(potStatus, 'Önce bir para birimi tanımla.', true); return; }
+    const g = parseFloat(potGoal.value);
+    const payload = { name, currency, goal: (!isNaN(g) && g > 0) ? g : null };
+
+    const promise = editingPot
+      ? potsRef.child(editingPot).update(payload)
+      : potsRef.push({ ...payload, createdAt: firebase.database.ServerValue.TIMESTAMP });
+
+    promise.then(() => {
+      showStatus(potStatus, 'Kaydedildi ✓', false);
+      setTimeout(() => { potForm.classList.remove('open'); editingPot = null; }, 400);
+    }).catch(err => showStatus(potStatus, 'Hata: ' + err.message, true));
+  });
+
+  potsRef.on('value', snap => {
+    potsData = snap.val() || {};
+    renderPotList();
+    fillPotSelect(entryPot, currencySelect.value, entryPot.value);
+  });
+
+  /* ---------------- genel hedef ---------------- */
+  const totalGoalInput = document.getElementById('totalGoal');
+  const totalGoalStatus = document.getElementById('totalGoalStatus');
+
+  settingsRef.on('value', snap => {
+    settingsData = snap.val() || {};
+    // kullanici yazarken alani ezme
+    if(document.activeElement !== totalGoalInput){
+      totalGoalInput.value = settingsData.totalGoalTRY > 0 ? settingsData.totalGoalTRY : '';
+    }
+  });
+
+  document.getElementById('totalGoalSaveBtn').addEventListener('click', () => {
+    const v = parseFloat(totalGoalInput.value);
+    settingsRef.update({ totalGoalTRY: (!isNaN(v) && v > 0) ? v : null })
+      .then(() => showStatus(totalGoalStatus, 'Kaydedildi ✓', false))
+      .catch(err => showStatus(totalGoalStatus, 'Hata: ' + err.message, true));
   });
 
   /* ---------------- undo toast ---------------- */
@@ -951,34 +1241,210 @@
     }
 
     items.forEach(([key, item]) => {
-      const cur = Object.values(currencies).find(c => c.code === item.currency);
-      const isWithdraw = item.type === 'withdraw';
-      const sign = isWithdraw ? '−' : '+';
-      const sym = cur ? (cur.symbol || cur.code) : item.currency;
-      const time = item.timestamp ? new Date(item.timestamp).toLocaleString('tr-TR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
-
-      const div = document.createElement('div');
-      div.className = 'entry';
-      div.innerHTML = `
-        <div class="cur-badge">${badgeHtml(cur || {code:item.currency})}</div>
-        <span class="amt ${isWithdraw ? 'wd' : 'dep'}">${sign}${sym}${Number(item.amount).toLocaleString('tr-TR',{minimumFractionDigits:2, maximumFractionDigits:2})}</span>
-        <span class="note">${item.note ? item.note : ''}</span>
-        ${item.addedBy ? `<span class="who">· ${item.addedBy}</span>` : ''}
-        <span class="time">${time}</span>
-        <button class="icon-btn danger" title="Sil">✕</button>
-      `;
-      div.querySelector('.icon-btn.danger').addEventListener('click', () => {
-        entriesRef.child(key).update({ deleted: true, deletedAt: firebase.database.ServerValue.TIMESTAMP });
-        showUndoToast('Kayıt silindi.', () => {
-          entriesRef.child(key).update({ deleted: null, deletedAt: null });
-        });
-      });
-      entriesEl.appendChild(div);
+      entriesEl.appendChild(entryRow(key, item));
     });
 
     renderDueBanners();
+    renderTrash();
   }, (err) => {
     showStatus(statusEl, 'Bağlantı hatası: ' + err.message, true);
+  });
+
+  function entryRow(key, item){
+    const cur = Object.values(currencies).find(c => c.code === item.currency);
+    const isWithdraw = item.type === 'withdraw';
+    const sign = isWithdraw ? '−' : '+';
+    const sym = cur ? (cur.symbol || cur.code) : item.currency;
+    const time = item.timestamp
+      ? new Date(item.timestamp).toLocaleString('tr-TR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})
+      : '';
+    const pot = item.pot ? potsData[item.pot] : null;
+
+    const sub = [
+      item.note ? `<span class="note-txt">${esc(item.note)}</span>` : '',
+      time,
+      item.addedBy ? esc(item.addedBy) : ''
+    ].filter(Boolean).join(' · ');
+
+    const div = document.createElement('div');
+    div.className = 'entry';
+    div.innerHTML = `
+      <div class="cur-badge">${badgeHtml(cur || {code:item.currency})}</div>
+      <div class="entry-main">
+        <div class="entry-top">
+          <span class="amt ${isWithdraw ? 'wd' : 'dep'}">${sign}${esc(sym)}${Number(item.amount).toLocaleString('tr-TR',{minimumFractionDigits:2, maximumFractionDigits:2})}</span>
+          ${item.tag ? `<span class="tag-chip">${esc(item.tag)}</span>` : ''}
+          ${pot ? `<span class="tag-chip pot">${esc(pot.name)}</span>` : ''}
+        </div>
+        <div class="entry-sub">${sub}</div>
+      </div>
+      <div class="entry-actions">
+        <button class="icon-btn" title="Düzenle" data-edit-entry>✎</button>
+        <button class="icon-btn danger" title="Sil" data-del-entry>✕</button>
+      </div>
+    `;
+
+    div.querySelector('[data-del-entry]').addEventListener('click', () => {
+      entriesRef.child(key).update({ deleted: true, deletedAt: firebase.database.ServerValue.TIMESTAMP });
+      showUndoToast('Kayıt silindi.', () => {
+        entriesRef.child(key).update({ deleted: null, deletedAt: null });
+      });
+    });
+
+    div.querySelector('[data-edit-entry]').addEventListener('click', () => openEntryEditor(key, item, div));
+    return div;
+  }
+
+  /* ---------------- kayit duzenleme ---------------- */
+  function openEntryEditor(key, item, rowEl){
+    document.querySelectorAll('.entry-edit').forEach(el => el.remove());
+
+    const box = document.createElement('div');
+    box.className = 'entry-edit';
+    box.innerHTML = `
+      <div class="grid">
+        <div class="row">
+          <label>Yön</label>
+          <select class="ed-type">
+            <option value="deposit">Kasaya ekle</option>
+            <option value="withdraw">Kasadan düş</option>
+          </select>
+        </div>
+        <div class="row">
+          <label>Miktar</label>
+          <input type="number" class="ed-amount" step="0.01" min="0" />
+        </div>
+      </div>
+      <div class="row" style="margin-top:16px;">
+        <label>Not</label>
+        <input type="text" class="ed-note" />
+      </div>
+      <div class="grid" style="margin-top:16px;">
+        <div class="row">
+          <label>Etiket</label>
+          <select class="ed-tag"></select>
+        </div>
+        <div class="row">
+          <label>Bölme</label>
+          <select class="ed-pot"></select>
+        </div>
+      </div>
+      <div class="row" style="margin-top:16px;">
+        <label>Tarih</label>
+        <input type="datetime-local" class="ed-date" />
+      </div>
+      <p class="status ed-status"></p>
+      <div class="actions">
+        <button class="btn btn-primary btn-sm ed-save">Kaydet</button>
+        <button class="btn btn-ghost btn-sm ed-cancel">Vazgeç</button>
+      </div>
+    `;
+
+    const edType = box.querySelector('.ed-type');
+    const edAmount = box.querySelector('.ed-amount');
+    const edNote = box.querySelector('.ed-note');
+    const edTag = box.querySelector('.ed-tag');
+    const edPot = box.querySelector('.ed-pot');
+    const edDate = box.querySelector('.ed-date');
+    const edStatus = box.querySelector('.ed-status');
+
+    edType.value = item.type === 'withdraw' ? 'withdraw' : 'deposit';
+    edAmount.value = Number(item.amount || 0);
+    edNote.value = item.note || '';
+    fillTagSelect(edTag, item.tag || '');
+    fillPotSelect(edPot, item.currency, item.pot || '');
+    edDate.value = item.timestamp ? toLocalInput(new Date(item.timestamp)) : '';
+
+    rowEl.after(box);
+    box.scrollIntoView({behavior:'smooth', block:'nearest'});
+
+    box.querySelector('.ed-cancel').addEventListener('click', () => box.remove());
+
+    box.querySelector('.ed-save').addEventListener('click', () => {
+      const amount = parseFloat(edAmount.value);
+      if(isNaN(amount) || amount <= 0){ showStatus(edStatus, 'Geçerli bir miktar gir.', true); return; }
+
+      const picked = edDate.value ? new Date(edDate.value).getTime() : NaN;
+      const payload = {
+        amount,
+        type: edType.value,
+        note: edNote.value.trim(),
+        tag: edTag.value || null,
+        pot: edPot.value || null,
+        timestamp: isNaN(picked) ? (item.timestamp || Date.now()) : picked
+      };
+
+      entriesRef.child(key).update(payload)
+        .then(() => { box.remove(); showStatus(statusEl, 'Kayıt güncellendi ✓', false); })
+        .catch(err => showStatus(edStatus, 'Hata: ' + err.message, true));
+    });
+  }
+
+  /* ---------------- cop kutusu ---------------- */
+  const trashList = document.getElementById('trashList');
+  const trashCount = document.getElementById('trashCount');
+  const trashActions = document.getElementById('trashActions');
+
+  function renderTrash(){
+    const items = Object.entries(entriesData)
+      .filter(([,it]) => it && it.deleted)
+      .sort((a,b) => (b[1].deletedAt || b[1].timestamp || 0) - (a[1].deletedAt || a[1].timestamp || 0));
+
+    trashCount.textContent = items.length + ' kayıt';
+    trashActions.style.display = items.length ? 'flex' : 'none';
+
+    if(items.length === 0){
+      trashList.innerHTML = '<div class="cur-empty">Silinen kayıt yok.</div>';
+      return;
+    }
+
+    trashList.innerHTML = '';
+    items.forEach(([key, it]) => {
+      const cur = Object.values(currencies).find(c => c.code === it.currency);
+      const sym = cur ? (cur.symbol || cur.code) : it.currency;
+      const isWithdraw = it.type === 'withdraw';
+      const when = it.deletedAt
+        ? new Date(it.deletedAt).toLocaleString('tr-TR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})
+        : '';
+      const div = document.createElement('div');
+      div.className = 'cur-item trash-item';
+      div.innerHTML = `
+        <div class="cur-badge">${badgeHtml(cur || {code: it.currency})}</div>
+        <div class="cur-info">
+          <div class="cur-code trash-amt ${isWithdraw ? 'wd' : 'dep'}">${isWithdraw ? '−' : '+'}${esc(sym)}${Number(it.amount||0).toLocaleString('tr-TR',{minimumFractionDigits:2, maximumFractionDigits:2})}</div>
+          <div class="cur-name">${it.note ? esc(it.note) + ' · ' : ''}${when ? 'silindi: ' + when : ''}</div>
+        </div>
+        <div class="cur-actions">
+          <button class="icon-btn" title="Geri al" data-restore="${key}">↩</button>
+          <button class="icon-btn danger" title="Kalıcı sil" data-purge="${key}">✕</button>
+        </div>
+      `;
+      trashList.appendChild(div);
+    });
+  }
+
+  trashList.addEventListener('click', e => {
+    const restoreKey = e.target.closest('[data-restore]')?.dataset.restore;
+    const purgeKey = e.target.closest('[data-purge]')?.dataset.purge;
+    if(restoreKey){
+      entriesRef.child(restoreKey).update({ deleted: null, deletedAt: null })
+        .catch(err => showStatus(statusEl, 'Hata: ' + err.message, true));
+    }
+    if(purgeKey){
+      if(confirm('Bu kayıt kalıcı olarak silinecek. Geri alınamaz. Devam edilsin mi?')){
+        entriesRef.child(purgeKey).remove()
+          .catch(err => showStatus(statusEl, 'Hata: ' + err.message, true));
+      }
+    }
+  });
+
+  document.getElementById('purgeAllBtn').addEventListener('click', () => {
+    const keys = Object.entries(entriesData).filter(([,it]) => it && it.deleted).map(([k]) => k);
+    if(keys.length === 0) return;
+    if(!confirm(keys.length + ' kayıt kalıcı olarak silinecek. Geri alınamaz. Devam edilsin mi?')) return;
+    const updates = {};
+    keys.forEach(k => { updates[k] = null; });
+    entriesRef.update(updates).catch(err => showStatus(statusEl, 'Hata: ' + err.message, true));
   });
 
   /* ---------------- yedek ---------------- */
@@ -1009,7 +1475,9 @@
       exportedBy: currentUserEmail(),
       currencies,
       entries: entriesData,
-      recurring: recurringData
+      recurring: recurringData,
+      pots: potsData,
+      settings: settingsData
     };
     downloadFile(stampName('json'), JSON.stringify(payload, null, 2), 'application/json');
     showStatus(backupStatus, 'JSON indirildi ✓', false);
@@ -1017,7 +1485,7 @@
 
   document.getElementById('exportCsvBtn').addEventListener('click', () => {
     const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
-    const rows = [['tarih','yon','para_birimi','miktar','not','ekleyen'].join(';')];
+    const rows = [['tarih','yon','para_birimi','miktar','etiket','bolme','not','ekleyen'].join(';')];
     Object.values(entriesData)
       .filter(it => it && !it.deleted)
       .sort((a,b) => (a.timestamp||0) - (b.timestamp||0))
@@ -1028,6 +1496,8 @@
           q(it.type === 'withdraw' ? 'cikis' : 'giris'),
           q(it.currency),
           q(String(Number(it.amount||0).toFixed(2)).replace('.', ',')),
+          q(it.tag || ''),
+          q(it.pot && potsData[it.pot] ? potsData[it.pot].name : ''),
           q(it.note || ''),
           q(it.addedBy || '')
         ].join(';'));
@@ -1179,6 +1649,8 @@
   currenciesRef.on('value', () => {
     renderRecurringSelect();
     renderDueBanners();
+    renderPotList();
+    fillPotSelect(entryPot, currencySelect.value, entryPot.value);
   });
 
   recurringRef.on('value', snap => {

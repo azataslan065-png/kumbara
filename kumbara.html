@@ -147,6 +147,55 @@
   .search-input:focus{ border-color:var(--gold); }
 
   .entry .who{ font-family:ui-monospace,'SF Mono',Menlo,monospace; font-size:10px; color:rgba(245,237,227,0.3); flex-shrink:0; }
+
+  /* ---------- entry row (iki satir) ---------- */
+  .entry-main{ flex:1; min-width:0; }
+  .entry-top{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .entry-top .amt{ flex:0 0 auto; }
+  .entry-sub{
+    font-family:ui-monospace,'SF Mono',Menlo,monospace;
+    font-size:11px; color:rgba(245,237,227,0.35);
+    margin-top:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .entry-sub .note-txt{ color:rgba(245,237,227,0.55); font-family:'Georgia',serif; font-size:13px; }
+  .tag-chip{
+    font-family:ui-monospace,'SF Mono',Menlo,monospace;
+    font-size:10px; padding:3px 8px; border-radius:10px;
+    border:1px solid var(--line-strong); color:rgba(245,237,227,0.5); flex-shrink:0;
+  }
+  .tag-chip.pot{ color:var(--gold-light); border-color:rgba(212,165,55,0.4); }
+
+  /* ---------- bolmeler ---------- */
+  .sec-title{
+    font-family:ui-monospace,'SF Mono',Menlo,monospace;
+    font-size:12px; font-weight:400; letter-spacing:0.02em;
+    color:rgba(245,237,227,0.6); margin:28px 0 12px;
+  }
+  .pot-grid{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  @media(max-width:520px){ .pot-grid{ grid-template-columns:1fr; } }
+  .pot-card{ background:var(--vault-dark); border:1px solid var(--line); border-radius:4px; padding:16px 18px; }
+  .pot-name{ font-size:15px; margin-bottom:2px; }
+  .pot-val{ font-size:22px; color:var(--gold-light); letter-spacing:-0.01em; }
+  .pot-card .goal-track{ margin-top:10px; }
+  .pot-card .goal-text{ margin-top:5px; }
+
+  /* ---------- genel hedef ---------- */
+  .total-goal{ margin-top:14px; }
+  .total-goal .goal-track{ height:6px; background:var(--vault-darker); border-radius:3px; overflow:hidden; }
+  .total-goal .goal-text{ justify-content:center; gap:10px; }
+
+  /* ---------- etiket dagilimi ---------- */
+  .tag-row{ display:flex; align-items:center; gap:10px; margin-bottom:9px; }
+  .tag-name{ font-family:ui-monospace,'SF Mono',Menlo,monospace; font-size:11px; color:rgba(245,237,227,0.6); width:84px; flex-shrink:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .tag-bar{ flex:1; height:8px; background:var(--vault-darker); border-radius:4px; overflow:hidden; }
+  .tag-bar span{ display:block; height:100%; border-radius:4px; }
+  .tag-val{ font-family:ui-monospace,'SF Mono',Menlo,monospace; font-size:11px; color:rgba(245,237,227,0.45); flex-shrink:0; }
+
+  /* ---------- bu ay / kur farki ---------- */
+  .split-main{ font-size:28px; color:var(--gold-light); text-align:center; margin-bottom:12px; }
+  .split-rows{ display:flex; flex-direction:column; gap:7px; }
+  .split-rows > div{ display:flex; justify-content:space-between; font-family:ui-monospace,'SF Mono',Menlo,monospace; font-size:12px; color:rgba(245,237,227,0.55); }
+  .split-rows > div span:last-child{ color:var(--cream); }
 </style>
 </head>
 <body>
@@ -160,6 +209,8 @@
 
   <div class="grand-total" id="grandTotal" style="display:none;"></div>
 
+  <div id="potsSection"></div>
+
   <div class="charts">
     <div class="chart-card">
       <h3>Para birimi dağılımı</h3>
@@ -170,6 +221,13 @@
       <div id="lineChart"><div class="chart-empty">Yükleniyor…</div></div>
     </div>
   </div>
+
+  <div class="chart-card" id="tagCard" style="margin-top:16px; display:none;">
+    <h3>Etiket dağılımı — bu ay, girişler</h3>
+    <div id="tagChart"></div>
+  </div>
+
+  <div class="chart-card" id="fxSplit" style="margin-top:16px; display:none;"></div>
 
   <div class="summary-box" id="monthlySummary"></div>
 
@@ -183,7 +241,7 @@
       <h2>İşlem geçmişi</h2>
       <span id="histCount">0 kayıt</span>
     </div>
-    <input type="text" class="search-input" id="searchInput" placeholder="Notlarda ara…" />
+    <input type="text" class="search-input" id="searchInput" placeholder="Not, etiket ya da bölmede ara…" />
     <div class="filter-row" id="filterRow">
       <button class="chip on" data-filter="all">Tümü</button>
     </div>
@@ -209,6 +267,8 @@
   const db = firebase.database();
   const currenciesRef = db.ref('kumbara/currencies');
   const entriesRef = db.ref('kumbara/entries');
+  const potsRef = db.ref('kumbara/pots');
+  const settingsRef = db.ref('kumbara/settings');
 
   const totalsEl = document.getElementById('totals');
   const countEl = document.getElementById('entryCount');
@@ -225,6 +285,8 @@
 
   let currencies = {};
   let entriesData = {};
+  let potsData = {};
+  let settingsData = {};
   let previousTotals = {};
   let lastTotals = {};
   let firstLoad = true;
@@ -254,6 +316,8 @@
     renderGrandTotal();
     renderDonut();
     renderLineChart();
+    renderTagChart();
+    renderFxSplit();
   }
 
   (function loadCachedRates(){
@@ -302,6 +366,18 @@
     return convertToTRY(it.currency, amt);
   }
 
+  // kullanici metnini HTML'e basmadan once kacir
+  function esc(v){
+    return String(v == null ? '' : v)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+
+  function monthStartTs(){
+    const n = new Date();
+    return new Date(n.getFullYear(), n.getMonth(), 1).getTime();
+  }
+
   function badgeHtml(cur, code){
     if(cur && cur.logo) return `<img src="${cur.logo}" alt="${code}" />`;
     if(cur && cur.symbol) return cur.symbol;
@@ -318,6 +394,18 @@
     renderGrandTotal();
     renderDonut();
     renderLineChart();
+    renderPots();
+  });
+
+  potsRef.on('value', snap => {
+    potsData = snap.val() || {};
+    renderPots();
+    renderHistory(true);
+  });
+
+  settingsRef.on('value', snap => {
+    settingsData = snap.val() || {};
+    renderGrandTotal();
   });
 
   entriesRef.orderByChild('timestamp').on('value', (snapshot) => {
@@ -329,6 +417,9 @@
     renderDonut();
     renderLineChart();
     renderMonthlySummary();
+    renderPots();
+    renderTagChart();
+    renderFxSplit();
   }, (err) => {
     totalsEl.innerHTML = '<div class="empty-state">Bağlantı hatası: ' + err.message + '</div>';
   });
@@ -438,11 +529,182 @@
       if(conv === null) missing.push(c); else sum += conv;
     });
     const note = fxNote();
+
+    // genel hedef (bank'tan ayarlanir)
+    let goalHtml = '';
+    const goal = Number(settingsData.totalGoalTRY || 0);
+    if(goal > 0){
+      const pct = Math.max(0, Math.min(100, (sum / goal) * 100));
+      const left = goal - sum;
+      goalHtml = `
+        <div class="total-goal">
+          <div class="goal-track"><div class="goal-fill" style="width:${pct.toFixed(1)}%"></div></div>
+          <div class="goal-text">
+            <span>%${pct.toFixed(0)}</span>
+            <span>hedef: ₺${goal.toLocaleString('tr-TR',{maximumFractionDigits:0})}</span>
+            <span>${left > 0 ? 'kalan: ₺' + left.toLocaleString('tr-TR',{maximumFractionDigits:0}) : 'ulaşıldı ✓'}</span>
+          </div>
+        </div>`;
+    }
+
     grandTotalEl.innerHTML = `
       <div class="label">TOPLAM (₺ karşılığı, tahmini)</div>
       <div class="amount">₺${sum.toLocaleString('tr-TR',{minimumFractionDigits:2, maximumFractionDigits:2})}</div>
       ${note ? `<div class="fx-note">${note}</div>` : ''}
       ${missing.length ? `<div class="fx-note">${missing.join(', ')} kur bulunamadığı için dahil edilmedi</div>` : ''}
+      ${goalHtml}
+    `;
+  }
+
+  /* ---------- bolmeler ---------- */
+  function potEta(potKey, current, goal){
+    const remaining = goal - current;
+    if(remaining <= 0) return 'hedefe ulaşıldı ✓';
+
+    const now = Date.now();
+    const since = now - 90*24*3600*1000;
+    let net = 0, firstStamp = null;
+
+    Object.values(entriesData).forEach(it => {
+      if(!it || it.deleted || it.pot !== potKey) return;
+      if(!it.timestamp || it.timestamp < since) return;
+      if(firstStamp === null || it.timestamp < firstStamp) firstStamp = it.timestamp;
+      net += (it.type === 'withdraw' ? -1 : 1) * Number(it.amount||0);
+    });
+
+    if(firstStamp === null || net <= 0) return null;
+    const days = Math.max(14, (now - firstStamp) / 86400000);
+    const perMonth = net / days * 30;
+    if(perMonth <= 0) return null;
+    const months = remaining / perMonth;
+    if(!isFinite(months) || months <= 0 || months > 120) return null;
+    return months < 1 ? 'bu hızla ~1 aydan az' : ('bu hızla ~' + Math.round(months) + ' ay');
+  }
+
+  function renderPots(){
+    const el = document.getElementById('potsSection');
+    const keys = Object.keys(potsData);
+    if(keys.length === 0){ el.innerHTML = ''; return; }
+
+    const bal = {};
+    Object.values(entriesData).forEach(it => {
+      if(!it || it.deleted || !it.pot) return;
+      bal[it.pot] = (bal[it.pot] || 0) + (it.type === 'withdraw' ? -1 : 1) * Number(it.amount||0);
+    });
+
+    const cards = keys.map(key => {
+      const pot = potsData[key];
+      const cur = curByCode(pot.currency);
+      const sym = (cur && cur.symbol) || pot.currency || '';
+      const v = bal[key] || 0;
+
+      let goalHtml = '';
+      if(pot.goal > 0){
+        const pct = Math.max(0, Math.min(100, (v / pot.goal) * 100));
+        const eta = potEta(key, v, pot.goal);
+        goalHtml = `
+          <div class="goal-track"><div class="goal-fill" style="width:${pct.toFixed(1)}%"></div></div>
+          <div class="goal-text">
+            <span>%${pct.toFixed(0)}</span>
+            <span>hedef: ${esc(sym)}${Number(pot.goal).toLocaleString('tr-TR',{maximumFractionDigits:0})}</span>
+          </div>
+          ${eta ? `<div class="goal-eta">${eta}</div>` : ''}`;
+      }
+
+      return `
+        <div class="pot-card">
+          <div class="pot-name">${esc(pot.name || 'adsız')}</div>
+          <div class="pot-val">${esc(sym)}${v.toLocaleString('tr-TR',{minimumFractionDigits:2, maximumFractionDigits:2})}</div>
+          ${goalHtml}
+        </div>`;
+    }).join('');
+
+    el.innerHTML = `<h2 class="sec-title">Bölmeler</h2><div class="pot-grid">${cards}</div>`;
+  }
+
+  /* ---------- etiket dagilimi (bu ay, girisler) ---------- */
+  function renderTagChart(){
+    const card = document.getElementById('tagCard');
+    const el = document.getElementById('tagChart');
+    const start = monthStartTs();
+
+    const byTag = {};
+    Object.values(entriesData).forEach(it => {
+      if(!it || it.deleted || it.type === 'withdraw') return;
+      if(!it.timestamp || it.timestamp < start) return;
+      const v = entryTRY(it);
+      if(v === null) return;
+      const t = it.tag || 'Etiketsiz';
+      byTag[t] = (byTag[t] || 0) + v;
+    });
+
+    const rows = Object.entries(byTag).sort((a,b) => b[1] - a[1]);
+    if(rows.length === 0){ card.style.display = 'none'; return; }
+    card.style.display = 'block';
+
+    const max = rows[0][1] || 1;
+    el.innerHTML = rows.map(([t, v], i) => `
+      <div class="tag-row">
+        <span class="tag-name">${esc(t)}</span>
+        <span class="tag-bar"><span style="width:${Math.max(2, v/max*100).toFixed(1)}%;background:${PALETTE[i % PALETTE.length]}"></span></span>
+        <span class="tag-val">₺${v.toLocaleString('tr-TR',{maximumFractionDigits:0})}</span>
+      </div>`).join('');
+  }
+
+  /* ---------- bu ay: islem mi, kur farki mi ----------
+     V_simdi - V_ayBasi =  (bu ayin net akisi, bugunku kurla)
+                         + (ay basi bakiyesinin kur degisiminden gelen farki)
+     Ay basi kuru icin, ay basindan onceki son kur damgali kaydi kullaniyoruz. */
+  function renderFxSplit(){
+    const box = document.getElementById('fxSplit');
+    if(!fxRates){ box.style.display = 'none'; return; }
+
+    const start = monthStartTs();
+    const balStart = {}, flow = {}, rateStart = {}, rateStartAt = {};
+
+    Object.values(entriesData).forEach(it => {
+      if(!it || it.deleted || !it.currency) return;
+      const amt = (it.type === 'withdraw' ? -1 : 1) * Number(it.amount||0);
+      const t = it.timestamp || 0;
+      if(t < start){
+        balStart[it.currency] = (balStart[it.currency] || 0) + amt;
+        if(it.rate > 0 && (rateStartAt[it.currency] === undefined || t > rateStartAt[it.currency])){
+          rateStart[it.currency] = it.rate;
+          rateStartAt[it.currency] = t;
+        }
+      } else {
+        flow[it.currency] = (flow[it.currency] || 0) + amt;
+      }
+    });
+
+    const codes = new Set([...Object.keys(balStart), ...Object.keys(flow)]);
+    if(codes.size === 0){ box.style.display = 'none'; return; }
+
+    let flowTRY = 0, fxTRY = 0, haveFx = false;
+    codes.forEach(c => {
+      const rNow = fxRates[fxCode(c)];
+      if(!rNow) return;
+      flowTRY += (flow[c] || 0) / rNow;
+      const rS = rateStart[c];
+      if(rS > 0 && balStart[c]){
+        const diff = (1/rNow) - (1/rS);
+        fxTRY += balStart[c] * diff;
+        if(Math.abs(diff) > 1e-9) haveFx = true;
+      }
+    });
+
+    const net = flowTRY + fxTRY;
+    const f = v => (v >= 0 ? '+' : '−') + '₺' + Math.abs(v).toLocaleString('tr-TR',{maximumFractionDigits:0});
+
+    box.style.display = 'block';
+    box.innerHTML = `
+      <h3>Bu ay</h3>
+      <div class="split-main">${f(net)}</div>
+      <div class="split-rows">
+        <div><span>işlemler</span><span>${f(flowTRY)}</span></div>
+        <div><span>kur farkı</span><span>${haveFx ? f(fxTRY) : '—'}</span></div>
+      </div>
+      ${haveFx ? '' : '<div class="chart-note">kur farkı için ay başından önce kur damgalı kayıt gerekiyor</div>'}
     `;
   }
 
@@ -586,7 +848,12 @@
 
     let items = Object.entries(entriesData).filter(([,it]) => it && !it.deleted).sort((a,b) => (b[1].timestamp||0) - (a[1].timestamp||0));
     if(activeFilter !== 'all') items = items.filter(([,it]) => it.currency === activeFilter);
-    if(searchTerm) items = items.filter(([,it]) => (it.note || '').toLowerCase().includes(searchTerm));
+    if(searchTerm){
+      items = items.filter(([,it]) => {
+        const pot = it.pot && potsData[it.pot] ? potsData[it.pot].name : '';
+        return ((it.note || '') + ' ' + (it.tag || '') + ' ' + pot).toLowerCase().includes(searchTerm);
+      });
+    }
 
     histCount.textContent = items.length + (items.length === 1 ? ' kayıt' : ' kayıt');
 
@@ -605,14 +872,25 @@
       const sym = (cur && cur.symbol) || item.currency;
       const time = item.timestamp ? new Date(item.timestamp).toLocaleString('tr-TR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
 
+      const pot = item.pot ? potsData[item.pot] : null;
+      const sub = [
+        item.note ? `<span class="note-txt">${esc(item.note)}</span>` : '',
+        time,
+        item.addedBy ? esc(item.addedBy) : ''
+      ].filter(Boolean).join(' · ');
+
       const div = document.createElement('div');
       div.className = 'entry';
       div.innerHTML = `
         <div class="cur-badge">${badgeHtml(cur, item.currency)}</div>
-        <span class="amt ${isWithdraw ? 'wd' : 'dep'}">${sign}${sym}${Number(item.amount).toLocaleString('tr-TR',{minimumFractionDigits:2, maximumFractionDigits:2})}</span>
-        <span class="note">${item.note ? item.note : ''}</span>
-        ${item.addedBy ? `<span class="who">· ${item.addedBy}</span>` : ''}
-        <span class="time">${time}</span>
+        <div class="entry-main">
+          <div class="entry-top">
+            <span class="amt ${isWithdraw ? 'wd' : 'dep'}">${sign}${esc(sym)}${Number(item.amount).toLocaleString('tr-TR',{minimumFractionDigits:2, maximumFractionDigits:2})}</span>
+            ${item.tag ? `<span class="tag-chip">${esc(item.tag)}</span>` : ''}
+            ${pot ? `<span class="tag-chip pot">${esc(pot.name)}</span>` : ''}
+          </div>
+          <div class="entry-sub">${sub}</div>
+        </div>
       `;
       entriesEl.appendChild(div);
     });
